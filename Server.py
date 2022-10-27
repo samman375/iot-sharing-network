@@ -34,6 +34,7 @@ serverSocket.bind(serverAddress)
 
 blockedAccounts = []
 blockedAccountsLock = Lock()
+devicesInfo = {}
 
 """
     File names
@@ -94,6 +95,32 @@ def checkBlocked(username):
     else:
         blockedAccountsLock.release()
         return False
+
+# Given a string writes it to the edge device log
+def writeToEdgeDeviceLog(logString):
+    edgeDeviceLogFile = open(edgeDeviceLogFileName, "w")
+    edgeDeviceLogFile.write(logString)
+    edgeDeviceLogFile.close()
+
+def addNewDevice(username):
+    deviceSeqNum = 0 #
+    timestamp = "" #
+    deviceName = username
+    deviceIPAddr = "" #
+    UDPPortNum = 0 #
+    
+    # Add device to devices object
+    deviceObj = {}
+    deviceObj["deviceName"] = deviceName
+    deviceObj["timestamp"] = timestamp
+    deviceObj["deviceSeqNum"] = deviceSeqNum
+    deviceObj["deviceIPAddr"] = deviceIPAddr
+    deviceObj["UDPPortNum"] = UDPPortNum
+    devicesInfo.add(deviceObj)
+
+    # Log new device
+    logString = f"{deviceSeqNum}; {timestamp}; {deviceName}; {deviceIPAddr}; {UDPPortNum}"
+    writeToEdgeDeviceLog(logString)
 
 """
     Define multi-thread class for client
@@ -217,6 +244,8 @@ class ClientThread(Thread):
                     message = "welcome"
                     print(f'[{clientAddress}:send] ' + message)
                     self.clientSocket.send(message.encode())
+
+                    addNewDevice(usernameClaim)
                     break
                 else:
                     # Valid credentials but account blocked
