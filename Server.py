@@ -4,7 +4,7 @@
     Adapted from example multi-threaded server code on course homepage
 """
 from socket import *
-from threading import Thread
+from threading import Thread, Lock
 import sys, select, time
 
 # Acquire server port and max fail attempts from command line parameter
@@ -29,6 +29,7 @@ serverSocket.bind(serverAddress)
 """
 
 blockedAccounts = []
+blockedAccountsLock = Lock()
 
 
 """
@@ -63,14 +64,23 @@ def passwordLookup(username, password):
     return False
 
 def blockAccount(username):
+    blockedAccountsLock.acquire()
     blockedAccounts.append(username)
+    blockedAccountsLock.release()
+
     time.sleep(10)
+
+    blockedAccountsLock.acquire()
     blockedAccounts.remove(username)
+    blockedAccountsLock.release()
 
 def checkBlocked(username):
+    blockedAccountsLock.acquire()
     if username in blockedAccounts:
+        blockedAccountsLock.release()
         return True
     else:
+        blockedAccountsLock.release()
         return False
 
 """
