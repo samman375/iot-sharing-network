@@ -122,6 +122,8 @@ def addNewDevice(username):
     logString = f"{deviceSeqNum}; {timestamp}; {deviceName}; {deviceIPAddr}; {UDPPortNum}"
     writeToEdgeDeviceLog(logString)
 
+# removeDevice(username)
+
 """
     Define multi-thread class for client
     This class would be used to define the instance for each connection from each client
@@ -163,6 +165,9 @@ class ClientThread(Thread):
             if message == 'exit':
                 self.clientAlive = False
                 self.authenticated = False
+
+                # Remove device
+
                 print("===== the user disconnected - ", clientAddress)
                 break
             
@@ -244,7 +249,6 @@ class ClientThread(Thread):
                     message = "welcome"
                     print(f'[{clientAddress}:send] ' + message)
                     self.clientSocket.send(message.encode())
-
                     addNewDevice(usernameClaim)
                     break
                 else:
