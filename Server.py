@@ -7,6 +7,10 @@ from socket import *
 from threading import Thread, Lock
 import sys, select, time
 
+"""
+    Server setup
+"""
+
 # Acquire server port and max fail attempts from command line parameter
 if len(sys.argv) != 3:
     print("\nError usage: python3 server.py SERVER_PORT, NUM_CONSECUTIVE_FAIL_ATTEMPTS")
@@ -31,6 +35,12 @@ serverSocket.bind(serverAddress)
 blockedAccounts = []
 blockedAccountsLock = Lock()
 
+"""
+    File names
+"""
+
+credentialsFileName = "credentials.txt"
+edgeDeviceLogFileName = "edge-device-log.txt"
 
 """
     Helper functions
@@ -38,7 +48,7 @@ blockedAccountsLock = Lock()
 
 # Given a usernamelooks for it in credentials file
 def usernameLookup(username):
-    credsFile = open("credentials.txt", "r")
+    credsFile = open(credentialsFileName, "r")
     credsLines = credsFile.readlines()
     credsFile.close()
     for line in credsLines:
@@ -63,6 +73,7 @@ def passwordLookup(username, password):
                 return False
     return False
 
+# Given a username blocks that account for 10s
 def blockAccount(username):
     blockedAccountsLock.acquire()
     blockedAccounts.append(username)
@@ -74,6 +85,7 @@ def blockAccount(username):
     blockedAccounts.remove(username)
     blockedAccountsLock.release()
 
+# Given a username checks if that account is currently blocked
 def checkBlocked(username):
     blockedAccountsLock.acquire()
     if username in blockedAccounts:
