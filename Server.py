@@ -14,7 +14,7 @@ import sys, select, time, os, re
     Data structs & Global variables
 """
 
-blockedAccounts = {}
+blockedAccounts = set()
 blockedAccountsLock = Lock()
 devicesInfo = {}
 nDevices = 0
@@ -272,7 +272,7 @@ class ClientThread(Thread):
                 else:
                     # Valid credentials but account blocked
                     self.sendMessage("blocked account")
-                    break
+                    return
             elif usernameClaim in devicesInfo:
                 # Username already logged in
                 self.sendMessage("username already logged in")
@@ -281,8 +281,8 @@ class ClientThread(Thread):
                 if failedAttempts == maxFailAttempts:
                     # Max failed attempts reached. Block account
                     self.sendMessage("max failed attempts")
-                    blockAccount()
-                    break
+                    blockAccount(usernameClaim)
+                    return
 
                 # Re-request username
                 self.sendMessage('retry username authentication request')
@@ -312,7 +312,7 @@ class ClientThread(Thread):
                 if failedAttempts == maxFailAttempts:
                     # Max failed attempts reached. Block account
                     self.sendMessage("max failed attempts")
-                    blockAccount()
+                    blockAccount(usernameClaim)
                     break
 
                 # Re-request credentials
