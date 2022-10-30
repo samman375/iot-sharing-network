@@ -77,7 +77,7 @@ while True:
         validInput = False
         while not validInput:
             message = input("Enter one of the following commands (EDG, UED, SCS, DTE, AED, OUT): ").strip().upper()
-            if message not in ['EDG', 'UED', 'SCS', 'DTE', 'AED', 'OUT']:
+            if message[0:3] not in ['EDG', 'UED', 'SCS', 'DTE', 'AED', 'OUT']:
                 print("Invalid command.")
             else:
                 validInput = True
@@ -85,7 +85,13 @@ while True:
     
     # AED
     elif re.match("^AED resp: \n.*", receivedMessage):
+        # Remove header
         resp = re.sub("^AED resp: \n", "", receivedMessage)
+        print(resp)
+
+    # EDG
+    elif re.match("^EDG resp: \n.*", receivedMessage):
+        resp = re.sub("^EDG resp: \n", "", receivedMessage)
         print(resp)
 
     ### Misc:

@@ -8,7 +8,7 @@
 from datetime import datetime
 from socket import *
 from threading import Thread, Lock
-import sys, select, time, os
+import sys, select, time, os, re
 
 """
     Data structs & Global variables
@@ -214,10 +214,11 @@ class ClientThread(Thread):
                     print("===== user killed - ", self.clientAddress)
                     break
             
-            # use recv() to receive message from the client
+            # Receive message from the client
             data = self.clientSocket.recv(1024)
             message = data.decode()
             
+            # OUT command
             if message == 'OUT':
                 print(f"[{self.clientAddress}:recv] OUT")
                 
@@ -231,15 +232,32 @@ class ClientThread(Thread):
 
                 print("===== the user disconnected - ", self.clientAddress)
                 break
+            
+            # AED command
             elif message == 'AED':
                 print(f"[{self.clientAddress}:recv] AED")
                 self.activeEdgeDevices()
+            
+            # EDG command
+            elif re.match("^EDG.*", message):
+                # Ensure correct number of arguments supplied
+                args = message.split()
+                if len(args) != 3:
+                    self.sendMessage("EDG resp: \nEDG command requires fileID and dataAmount as arguments.")
+                    self.sendMessage("command request")
+                else:
+                    fileID = args[1]
+                    dataAmount = args[2]
+                    self.edgeDataGeneration(fileID, dataAmount)
+            
             elif message == 'login':
                 print(f"[{self.clientAddress}:recv] New login request")
                 self.promptLogin()
+            
             elif message == 'download':
                 print(f"[{self.clientAddress}:recv] Download request")
                 self.sendMessage('download filename')
+            
             else:
                 print(f"[{self.clientAddress}:recv] " + message)
                 self.sendMessage('Cannot understand this message')
@@ -322,7 +340,7 @@ class ClientThread(Thread):
                 # Re-request credentials
                 self.sendMessage('retry password authentication request')
     
-    # Return active edge devices
+    # Return all other active edge devices and request new command
     def activeEdgeDevices(self):
         print(f"Edge device {self.username} issued AED command")
         message = "AED resp: "
@@ -341,6 +359,35 @@ class ClientThread(Thread):
         
         self.sendMessage(message)
         self.sendMessage("command request")
+    
+    # Creates a new file counting from 1 to specified amount each on new line
+    # File of format: USERNAME-FILEID.txt
+    def edgeDataGeneration(self, fileID, dataAmount):
+        message = "EDG resp: "
+        
+        try:
+            # Check only integers supplied
+            fileIDInt = int(fileID)
+            dataAmountInt = int(dataAmount)
+
+            dateFile = open(f"{self.username}-{fileID}.txt", "w")
+            fileOutput = ""
+
+            # Data generated always from 1 to specified amount
+            for i in range(1, dataAmountInt + 1):
+                fileOutput += f"{i}\n"
+            
+            # Write to file removing trailing new line
+            dateFile.write(fileOutput[:-1])
+
+            message += "\nData generation done."
+            self.sendMessage(message)
+            self.sendMessage("command request")
+        except:
+            # Error message for when non-integers supplied
+            message += "\nThe fileID or dataAmount are not integers, you need to specify the parameter as integers."
+            self.sendMessage(message)
+            self.sendMessage("command request")
 
 
 print("\n===== Server is running =====")
