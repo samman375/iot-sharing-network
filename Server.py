@@ -2,10 +2,30 @@
     Usage: python3 server.py localhost 12000
 
     Adapted from example multi-threaded server code on course homepage
+
+    By Sam Thorley (z5257239)
 """
+from datetime import datetime
 from socket import *
 from threading import Thread, Lock
-import sys, select, time
+import sys, select, time, os, re
+
+"""
+    Data structs & Global variables
+"""
+
+blockedAccounts = {}
+blockedAccountsLock = Lock()
+devicesInfo = {}
+nDevice = 0
+nDevicesLock = Lock()
+
+"""
+    File names
+"""
+
+credentialsFileName = "credentials.txt"
+edgeDeviceLogFileName = "edge-device-log.txt"
 
 """
     Server setup
@@ -13,7 +33,7 @@ import sys, select, time
 
 # Acquire server port and max fail attempts from command line parameter
 if len(sys.argv) != 3:
-    print("\nError usage: python3 server.py SERVER_PORT, NUM_CONSECUTIVE_FAIL_ATTEMPTS")
+    print("\nError usage: python3 server.py SERVER_PORT NUM_CONSECUTIVE_FAIL_ATTEMPTS")
     exit(0)
 serverHost = "127.0.0.1"
 serverPort = int(sys.argv[1])
@@ -24,24 +44,9 @@ if maxFailAttempts < 1 or maxFailAttempts > 5:
     print("\nError usage: NUM_CONSECUTIVE_FAIL_ATTEMPTS must be between 1 and 5 (inclusive)")
     exit(0)
 
-# define socket for the server side and bind address
+# Define socket for the server side and bind address
 serverSocket = socket(AF_INET, SOCK_STREAM)
 serverSocket.bind(serverAddress)
-
-"""
-    Data structs
-"""
-
-blockedAccounts = []
-blockedAccountsLock = Lock()
-devicesInfo = {}
-
-"""
-    File names
-"""
-
-credentialsFileName = "credentials.txt"
-edgeDeviceLogFileName = "edge-device-log.txt"
 
 """
     Helper functions
@@ -60,7 +65,7 @@ def usernameLookup(username):
 
 # Given a username and password looks for it in credentials file
 def passwordLookup(username, password):
-    credsFile = open("credentials.txt", "r")
+    credsFile = open(credentialsFileName, "r")
     credsLines = credsFile.readlines()
     credsFile.close()
     for line in credsLines:
@@ -77,7 +82,7 @@ def passwordLookup(username, password):
 # Given a username blocks that account for 10s
 def blockAccount(username):
     blockedAccountsLock.acquire()
-    blockedAccounts.append(username)
+    blockedAccounts.add(username)
     blockedAccountsLock.release()
 
     time.sleep(10)
@@ -98,31 +103,74 @@ def checkBlocked(username):
 
 # Given a string writes it to the edge device log
 def writeToEdgeDeviceLog(logString):
-    edgeDeviceLogFile = open(edgeDeviceLogFileName, "w")
+    edgeDeviceLogFile = open(edgeDeviceLogFileName, "a")
     edgeDeviceLogFile.write(logString)
     edgeDeviceLogFile.close()
 
-def addNewDevice(username):
-    deviceSeqNum = 0 #
-    timestamp = "" #
-    deviceName = username
-    deviceIPAddr = "" #
-    UDPPortNum = 0 #
+# Writes edge device log based off data in devicesInfo object in order of seqNum
+def createEdgeDeviceLog(): 
+    # Remove existing log file if exists
+    if os.path.exists(edgeDeviceLogFileName):
+        os.remove(edgeDeviceLogFileName)
+
+    logFile = open(edgeDeviceLogFileName, "a")
+    
+    # Create dictionary with seqNum as key and deviceName as value to be used in sort
+    seqNums = {}
+    for deviceName in devicesInfo:
+        seqNums[devicesInfo[deviceName]["deviceSeqNum"]] = deviceName
+
+    # Add devices to log sorted by seqNum
+    for seqNum in sorted(seqNums.keys()):
+        deviceObj = devicesInfo[seqNums[seqNum]]
+        logString = f"{deviceObj["deviceSeqNum"]}; {deviceObj["timestamp"]}; {deviceObj["username"]}; {deviceObj["clientIPAddr"]}; {deviceObj["UDPPortNum"]}"
+        writeToEdgeDeviceLog(logString)
+
+# Add new device to network
+# Intialises device information in global struct and add to log file
+def addNewDevice(username, clientIPAddr):
+    nDevicesLock.acquire()
+    nDevices += 1
+    deviceSeqNum = nDevices
+    nDevicesLock.release()
+
+    timestamp = getFormattedDatetime(datetime.now())
+    UDPPortNum = 0                                      # TODO
     
     # Add device to devices object
     deviceObj = {}
-    deviceObj["deviceName"] = deviceName
     deviceObj["timestamp"] = timestamp
     deviceObj["deviceSeqNum"] = deviceSeqNum
-    deviceObj["deviceIPAddr"] = deviceIPAddr
+    deviceObj["deviceIPAddr"] = clientIPAddr
     deviceObj["UDPPortNum"] = UDPPortNum
-    devicesInfo.add(deviceObj)
+    devicesInfo[username] = deviceObj
 
-    # Log new device
-    logString = f"{deviceSeqNum}; {timestamp}; {deviceName}; {deviceIPAddr}; {UDPPortNum}"
-    writeToEdgeDeviceLog(logString)
+    # Update edge device log
+    createEdgeDeviceLog()
 
-# removeDevice(username)
+# Remove device from network
+def removeDevice(usernameToRemove):
+    nDevicesLock.acquire()
+    nDevices -= 1
+    nDevicesLock.release()
+
+    seqNumToRemove = devicesInfo[usernameToRemove]["deviceSeqNum"]
+
+    for deviceName in devicesInfo:
+        if devicesInfo[deviceName]["deviceSeqNum"] == seqNumToRemove:
+            # Delete device from global dictionary
+            devicesInfo.pop(usernameToRemove)
+        else if devicesInfo[deviceName]["deviceSeqNum"] > seqNumToRemove:
+            # Shift device sequence numbers down by 1
+            devicesInfo[deviceName]["deviceSeqNum"] -= 1
+
+    # Recreate log file
+    createEdgeDeviceLog()
+
+
+# Given a timestamp converts to format "DD Month YYYY HH:MM:SS"
+def getFormattedDatetime(ts):
+    return f"{ts.date} {ts.strtime("%B")} {ts.year} {ts.hour}:{ts.minute}:{ts.second}"
 
 """
     Define multi-thread class for client
@@ -249,7 +297,7 @@ class ClientThread(Thread):
                     message = "welcome"
                     print(f'[{clientAddress}:send] ' + message)
                     self.clientSocket.send(message.encode())
-                    addNewDevice(usernameClaim)
+                    addNewDevice(usernameClaim, self.clientAddress)
                     break
                 else:
                     # Valid credentials but account blocked

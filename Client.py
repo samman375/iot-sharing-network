@@ -1,7 +1,9 @@
 """
-Usage: python3 client.py localhost 12000
+    Usage: python3 client.py localhost 12000
 
-Adapted from example multi-threaded client code on course homepage
+    Adapted from example multi-threaded client code on course homepage
+
+    By Sam Thorley (z5257239)
 """
 from socket import *
 import sys
