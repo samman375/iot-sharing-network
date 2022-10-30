@@ -197,7 +197,7 @@ class ClientThread(Thread):
         self.authenticated = False
         self.username = ''
         
-        print("===== New connection created for: ", clientAddress)
+        print("===== New connection created for: ", self.clientAddress)
         self.clientAlive = True
         
     def run(self):
@@ -211,7 +211,7 @@ class ClientThread(Thread):
                 # If still not authenticated user reached fail limit
                 if not self.authenticated:
                     self.clientAlive = False
-                    print("===== user killed - ", clientAddress)
+                    print("===== user killed - ", self.clientAddress)
                     break
             
             # use recv() to receive message from the client
@@ -219,9 +219,7 @@ class ClientThread(Thread):
             message = data.decode()
             
             if message == 'OUT':
-                message = 'successfully disconnected'
-                print(f"[{clientAddress}:send] " + message)
-                self.clientSocket.send(message.encode())
+                self.sendMessage('successfully disconnected')
 
                 self.clientAlive = False
                 self.authenticated = False
@@ -229,26 +227,22 @@ class ClientThread(Thread):
                 # Remove device
                 removeDevice(self.username)
 
-                print("===== the user disconnected - ", clientAddress)
+                print("===== the user disconnected - ", self.clientAddress)
                 break
             
             # handle message from the client
             if message == 'login':
-                print(f"[{clientAddress}:recv] New login request")
+                print(f"[{self.clientAddress}:recv] New login request")
                 self.promptLogin()
             elif message == 'download':
-                print(f"[{clientAddress}:recv] Download request")
-                message = 'download filename'
-                print(f"[{clientAddress}:send] " + message)
-                self.clientSocket.send(message.encode())
+                print(f"[{self.clientAddress}:recv] Download request")
+                self.sendMessage('download filename')
             else:
-                print(f"[{clientAddress}:recv] " + message)
-                print(f"[{clientAddress}:send] Cannot understand this message")
-                message = 'Cannot understand this message'
-                self.clientSocket.send(message.encode())
+                print(f"[{self.clientAddress}:recv] " + message)
+                self.sendMessage('Cannot understand this message')
     
     # Given a message outputs to terminal and sends to client
-    def sendMessage(message):
+    def sendMessage(self, message):
         print(f"[{clientAddress}:send] " + message)
         self.clientSocket.send(message.encode())
 
@@ -264,9 +258,7 @@ class ClientThread(Thread):
         usernameClaim = ""
 
         # Initial get username from client
-        message = 'username authentication request'
-        print(f'[{clientAddress}:send] ' + message)
-        self.clientSocket.send(message.encode())
+        self.sendMessage('username authentication request')
 
         # Validate username
         while not validUsername:
@@ -279,35 +271,25 @@ class ClientThread(Thread):
                     validUsername = True
                 elif usernameClaim in devicesInfo:
                     # Username already logged in
-                    message = "username already logged in"
-                    print(f'[{clientAddress}:send] ' + message)
-                    self.clientSocket.send(message.encode())
+                    self.sendMessage("username already logged in")
                     break
                 else:
                     # Valid credentials but account blocked
-                    message = "blocked account"
-                    print(f'[{clientAddress}:send] ' + message)
-                    self.clientSocket.send(message.encode())
+                    self.sendMessage("blocked account")
                     break
             else:
                 failedAttempts += 1
                 if failedAttempts == maxFailAttempts:
                     # Max failed attempts reached. Block account
-                    message = "max failed attempts"
-                    print(f'[{clientAddress}:send] ' + message)
-                    self.clientSocket.send(message.encode())
+                    self.sendMessage("max failed attempts")
                     blockAccount()
                     break
 
                 # Re-request username
-                message = 'retry username authentication request'
-                print(f'[{clientAddress}:send] ' + message)
-                self.clientSocket.send(message.encode())
+                self.sendMessage('retry username authentication request')
 
         # Initial get password from client
-        message = 'password authentication request'
-        print(f'[{clientAddress}:send] ' + message)
-        self.clientSocket.send(message.encode())
+        self.sendMessage('password authentication request')
 
         # Validate password
         while True:
@@ -319,31 +301,23 @@ class ClientThread(Thread):
                     # Successful authentication
                     self.authenticated = True
                     self.username = usernameClaim
-                    message = "welcome"
-                    print(f'[{clientAddress}:send] ' + message)
-                    self.clientSocket.send(message.encode())
+                    self.sendMessage("welcome")
                     addNewDevice(usernameClaim, self.clientAddress[0])
                     break
                 else:
                     # Valid credentials but account blocked
-                    message = "blocked account"
-                    print(f'[{clientAddress}:send] ' + message)
-                    self.clientSocket.send(message.encode())
+                    self.sendMessage("blocked account")
                     break
             else:
                 failedAttempts += 1
                 if failedAttempts == maxFailAttempts:
                     # Max failed attempts reached. Block account
-                    message = "max failed attempts"
-                    print(f'[{clientAddress}:send] ' + message)
-                    self.clientSocket.send(message.encode())
+                    self.sendMessage("max failed attempts")
                     blockAccount()
                     break
 
                 # Re-request credentials
-                message = 'retry password authentication request'
-                print(f'[{clientAddress}:send] ' + message)
-                self.clientSocket.send(message.encode())
+                self.sendMessage('retry password authentication request')
 
 
 print("\n===== Server is running =====")
