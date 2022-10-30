@@ -93,6 +93,11 @@ while True:
     elif re.match("^EDG resp: \n.*", receivedMessage):
         resp = re.sub("^EDG resp: \n", "", receivedMessage)
         print(resp)
+    
+    # DTE
+    elif re.match("^DTE resp: \n.*", receivedMessage):
+        resp = re.sub("^DTE resp: \n", "", receivedMessage)
+        print(resp)
 
     ### Misc:
     else:

@@ -26,6 +26,7 @@ nDevicesLock = Lock()
 
 credentialsFileName = "credentials.txt"
 edgeDeviceLogFileName = "edge-device-log.txt"
+deletionLogFileName = "deletion-log.txt"
 
 """
     Server setup
@@ -48,9 +49,12 @@ if maxFailAttempts < 1 or maxFailAttempts > 5:
 serverSocket = socket(AF_INET, SOCK_STREAM)
 serverSocket.bind(serverAddress)
 
-# Remove existing log file if exists
+# Remove existing log files if exist
 if os.path.exists(edgeDeviceLogFileName):
     os.remove(edgeDeviceLogFileName)
+
+if os.path.exists(deletionLogFileName):
+    os.remove(deletionLogFileName)
 
 """
     Helper functions
@@ -219,6 +223,7 @@ class ClientThread(Thread):
             message = data.decode()
             
             # OUT command
+            # Usage: OUT
             if message == 'OUT':
                 print(f"[{self.clientAddress}:recv] OUT")
                 
@@ -234,11 +239,13 @@ class ClientThread(Thread):
                 break
             
             # AED command
+            # Usage: AED
             elif message == 'AED':
                 print(f"[{self.clientAddress}:recv] AED")
                 self.activeEdgeDevices()
             
             # EDG command
+            # Usage: EDG fileID dataAmount
             elif re.match("^EDG.*", message):
                 # Ensure correct number of arguments supplied
                 args = message.split()
@@ -250,13 +257,17 @@ class ClientThread(Thread):
                     dataAmount = args[2]
                     self.edgeDataGeneration(fileID, dataAmount)
             
-            elif message == 'login':
-                print(f"[{self.clientAddress}:recv] New login request")
-                self.promptLogin()
-            
-            elif message == 'download':
-                print(f"[{self.clientAddress}:recv] Download request")
-                self.sendMessage('download filename')
+            # DTE command
+            # Usage: DTE fileID
+            elif re.match("^DTE.*", message):
+                # Ensure correct number of arguments supplied
+                args = message.split()
+                if len(args) != 2:
+                    self.sendMessage("DTE resp: \nDTE command requires fileID as argument.")
+                    self.sendMessage("command request")
+                else:
+                    fileID = args[1]
+                    self.deleteDataFile(fileID)
             
             else:
                 print(f"[{self.clientAddress}:recv] " + message)
@@ -388,7 +399,31 @@ class ClientThread(Thread):
             message += "\nThe fileID or dataAmount are not integers, you need to specify the parameter as integers."
             self.sendMessage(message)
             self.sendMessage("command request")
+    
+    # Deletes requested file and logs operation if exists, else returns an error
+    def deleteDataFile(self, fileID):
+        message = "DTE resp: "
+        requestedFileName = f"{self.username}-{fileID}.txt"
+        # Return error if file does not exist on server side
+        if not os.path.exists(requestedFileName):
+            message += "\nSpecified file does not exist at the server side."
+            self.sendMessage(message)
+            self.sendMessage("command request")
+        else:
+            # Calculate data amount of requested file
+            requestedFile = open(requestedFileName, "r")
+            dataAmount = len(requestedFile.readlines())
+            
+            os.remove(requestedFileName)
 
+            # Append to deletion log
+            deletionLogFile = open(deletionLogFileName, "a")
+            timestamp = getFormattedDatetime(datetime.now())
+            deletionLogFile.write(f"{self.username}; {timestamp}; {fileID}; {dataAmount}\n")
+
+            message += f"\nFile with ID of {fileID} has been successfully removed from the central server."
+            self.sendMessage(message)
+            self.sendMessage("command request")
 
 print("\n===== Server is running =====")
 print("===== Waiting for connection request from clients...=====")
