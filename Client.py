@@ -61,7 +61,9 @@ while True:
         break
     elif receivedMessage == "username already logged in":
         print("This username is already logged in. Try another.")
-    
+        message = input("Username: ").strip()
+        clientSocket.send(message.encode())
+
     ### Commands:
     
     # Get command

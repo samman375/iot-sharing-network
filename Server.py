@@ -132,7 +132,7 @@ def createEdgeDeviceLog():
         deviceIPAddr = deviceObj["deviceIPAddr"]
         UDPPortNum = deviceObj["UDPPortNum"]
 
-        logString = f"{seqNum}; {timestamp}; {username}; {deviceIPAddr}; {UDPPortNum}"
+        logString = f"{seqNum}; {timestamp}; {username}; {deviceIPAddr}; {UDPPortNum}\n"
         writeToEdgeDeviceLog(logString)
 
 # Add new device to network
@@ -265,18 +265,17 @@ class ClientThread(Thread):
             data = self.clientSocket.recv(1024)
             usernameClaim = data.decode()
             
-            if usernameLookup(usernameClaim):
+            if usernameLookup(usernameClaim) and usernameClaim not in devicesInfo:
                 if not checkBlocked(usernameClaim):
-                    # Successful authentication
+                    # Successful username
                     validUsername = True
-                elif usernameClaim in devicesInfo:
-                    # Username already logged in
-                    self.sendMessage("username already logged in")
-                    break
                 else:
                     # Valid credentials but account blocked
                     self.sendMessage("blocked account")
                     break
+            elif usernameClaim in devicesInfo:
+                # Username already logged in
+                self.sendMessage("username already logged in")
             else:
                 failedAttempts += 1
                 if failedAttempts == maxFailAttempts:
