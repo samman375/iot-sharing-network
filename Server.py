@@ -123,7 +123,12 @@ def createEdgeDeviceLog():
     # Add devices to log sorted by seqNum
     for seqNum in sorted(seqNums.keys()):
         deviceObj = devicesInfo[seqNums[seqNum]]
-        logString = f"{deviceObj["deviceSeqNum"]}; {deviceObj["timestamp"]}; {deviceObj["username"]}; {deviceObj["clientIPAddr"]}; {deviceObj["UDPPortNum"]}"
+        timestamp = deviceObj["timestamp"]
+        username = seqNums[seqNum]
+        deviceIPAddr = deviceObj["deviceIPAddr"]
+        UDPPortNum = deviceObj["UDPPortNum"]
+
+        logString = f"{seqNum}; {timestamp}; {username}; {deviceIPAddr}; {UDPPortNum}"
         writeToEdgeDeviceLog(logString)
 
 # Add new device to network
@@ -160,7 +165,7 @@ def removeDevice(usernameToRemove):
         if devicesInfo[deviceName]["deviceSeqNum"] == seqNumToRemove:
             # Delete device from global dictionary
             devicesInfo.pop(usernameToRemove)
-        else if devicesInfo[deviceName]["deviceSeqNum"] > seqNumToRemove:
+        elif devicesInfo[deviceName]["deviceSeqNum"] > seqNumToRemove:
             # Shift device sequence numbers down by 1
             devicesInfo[deviceName]["deviceSeqNum"] -= 1
 
@@ -169,7 +174,7 @@ def removeDevice(usernameToRemove):
 
 # Given a datetime timestamp converts to format "DD Month YYYY HH:MM:SS"
 def getFormattedDatetime(ts):
-    return f"{ts.date} {ts.strtime("%B")} {ts.year} {ts.hour}:{ts.minute}:{ts.second}"
+    return ts.strftime("%d %B %Y %H:%M:%S")
 
 """
     Define multi-thread class for client
@@ -259,7 +264,7 @@ class ClientThread(Thread):
                 if not checkBlocked(usernameClaim):
                     # Successful authentication
                     validUsername = True
-                else if usernameClaim in devicesInfo:
+                elif usernameClaim in devicesInfo:
                     # Username already logged in
                     message = "username already logged in"
                     print(f'[{clientAddress}:send] ' + message)
