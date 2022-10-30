@@ -17,7 +17,7 @@ import sys, select, time, os, re
 blockedAccounts = {}
 blockedAccountsLock = Lock()
 devicesInfo = {}
-nDevice = 0
+nDevices = 0
 nDevicesLock = Lock()
 
 """
@@ -47,6 +47,10 @@ if maxFailAttempts < 1 or maxFailAttempts > 5:
 # Define socket for the server side and bind address
 serverSocket = socket(AF_INET, SOCK_STREAM)
 serverSocket.bind(serverAddress)
+
+# Remove existing log file if exists
+if os.path.exists(edgeDeviceLogFileName):
+    os.remove(edgeDeviceLogFileName)
 
 """
     Helper functions
@@ -135,6 +139,7 @@ def createEdgeDeviceLog():
 # Intialises device information in global struct and add to log file
 def addNewDevice(username, clientIPAddr):
     nDevicesLock.acquire()
+    global nDevices
     nDevices += 1
     deviceSeqNum = nDevices
     nDevicesLock.release()
@@ -156,16 +161,15 @@ def addNewDevice(username, clientIPAddr):
 # Remove device from network
 def removeDevice(usernameToRemove):
     nDevicesLock.acquire()
+    global nDevices
     nDevices -= 1
     nDevicesLock.release()
 
     seqNumToRemove = devicesInfo[usernameToRemove]["deviceSeqNum"]
 
+    devicesInfo.pop(usernameToRemove)
     for deviceName in devicesInfo:
-        if devicesInfo[deviceName]["deviceSeqNum"] == seqNumToRemove:
-            # Delete device from global dictionary
-            devicesInfo.pop(usernameToRemove)
-        elif devicesInfo[deviceName]["deviceSeqNum"] > seqNumToRemove:
+        if devicesInfo[deviceName]["deviceSeqNum"] > seqNumToRemove:
             # Shift device sequence numbers down by 1
             devicesInfo[deviceName]["deviceSeqNum"] -= 1
 
@@ -215,6 +219,10 @@ class ClientThread(Thread):
             message = data.decode()
             
             if message == 'OUT':
+                message = 'successfully disconnected'
+                print(f"[{clientAddress}:send] " + message)
+                self.clientSocket.send(message.encode())
+
                 self.clientAlive = False
                 self.authenticated = False
 
@@ -239,6 +247,11 @@ class ClientThread(Thread):
                 message = 'Cannot understand this message'
                 self.clientSocket.send(message.encode())
     
+    # Given a message outputs to terminal and sends to client
+    def sendMessage(message):
+        print(f"[{clientAddress}:send] " + message)
+        self.clientSocket.send(message.encode())
+
     """
         You can create more customized APIs here, e.g., logic for processing user authentication
         Each api can be used to handle one specific function
@@ -309,7 +322,7 @@ class ClientThread(Thread):
                     message = "welcome"
                     print(f'[{clientAddress}:send] ' + message)
                     self.clientSocket.send(message.encode())
-                    addNewDevice(usernameClaim, self.clientAddress)
+                    addNewDevice(usernameClaim, self.clientAddress[0])
                     break
                 else:
                     # Valid credentials but account blocked

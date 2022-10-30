@@ -66,24 +66,21 @@ while True:
     
     # Get command
     elif receivedMessage == "welcome":
-        print(f"Welcome!")
+        print("Welcome!")
         message = input("Enter one of the following commands (EDG, UED, SCS, DTE, AED, OUT): ").strip().upper()
         clientSocket.send(message.encode())
     
-    ### Misc:
+    # Disconnect
+    elif receivedMessage == "successfully disconnected":
+        print("Successfully logged out. Goodbye!")
+        break
 
+    ### Misc:
     elif receivedMessage == "download filename":
         print("[recv] You need to provide the file name you want to download")
     else:
         print("[recv] Error: Unknown server response received")
-    
-    ans = input('\nDo you want to continue(y/n) :')
-    if ans == 'y':
-        continue
-    else:
-        message = "exit"
-        clientSocket.send(message.encode())
-        break
+
 
 # close the socket
 clientSocket.close()
