@@ -69,7 +69,13 @@ while True:
     # Get command
     elif receivedMessage == "welcome":
         print("Welcome!")
-        message = input("Enter one of the following commands (EDG, UED, SCS, DTE, AED, OUT): ").strip().upper()
+        validInput = False
+        while not validInput:
+            message = input("Enter one of the following commands - EDG, UED, SCS, DTE, AED, OUT: ").strip().upper()
+            if message not in ['EDG', 'UED', 'SCS', 'DTE', 'AED', 'OUT']:
+                print("Invalid command.")
+            else:
+                validInput = True
         clientSocket.send(message.encode())
     
     # Disconnect
