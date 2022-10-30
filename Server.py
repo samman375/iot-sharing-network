@@ -8,7 +8,7 @@
 from datetime import datetime
 from socket import *
 from threading import Thread, Lock
-import sys, select, time, os, re
+import sys, select, time, os
 
 """
     Data structs & Global variables
@@ -219,6 +219,8 @@ class ClientThread(Thread):
             message = data.decode()
             
             if message == 'OUT':
+                print(f"[{self.clientAddress}:recv] OUT")
+                
                 self.sendMessage('successfully disconnected')
 
                 self.clientAlive = False
@@ -229,9 +231,10 @@ class ClientThread(Thread):
 
                 print("===== the user disconnected - ", self.clientAddress)
                 break
-            
-            # handle message from the client
-            if message == 'login':
+            elif message == 'AED':
+                print(f"[{self.clientAddress}:recv] AED")
+                self.activeEdgeDevices()
+            elif message == 'login':
                 print(f"[{self.clientAddress}:recv] New login request")
                 self.promptLogin()
             elif message == 'download':
@@ -243,6 +246,7 @@ class ClientThread(Thread):
     
     # Given a message outputs to terminal and sends to client
     def sendMessage(self, message):
+        message += '\r'
         print(f"[{clientAddress}:send] " + message)
         self.clientSocket.send(message.encode())
 
@@ -317,6 +321,26 @@ class ClientThread(Thread):
 
                 # Re-request credentials
                 self.sendMessage('retry password authentication request')
+    
+    # Return active edge devices
+    def activeEdgeDevices(self):
+        print(f"Edge device {self.username} issued AED command")
+        message = "AED resp: "
+        
+        if len(devicesInfo.keys()) == 1:
+            message += "\nno other active edge devices"
+        else:
+            for deviceName in devicesInfo:
+                if deviceName == self.username:
+                    continue
+                else:
+                    timestamp = devicesInfo[deviceName]["timestamp"]
+                    ipAddr = devicesInfo[deviceName]["deviceIPAddr"][0]
+                    udpPortNum = devicesInfo[deviceName]["UDPPortNum"]
+                    message += f"\n{deviceName}, active since {timestamp}, IP address: {ipAddr}, UDP port number: {udpPortNum}"
+        
+        self.sendMessage(message)
+        self.sendMessage("command request")
 
 
 print("\n===== Server is running =====")

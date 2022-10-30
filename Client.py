@@ -6,7 +6,7 @@
     By Sam Thorley (z5257239)
 """
 from socket import *
-import sys
+import sys, re
 
 # Server would be running on the same host as Client
 if len(sys.argv) != 4:
@@ -33,61 +33,64 @@ while True:
     receivedMessage = data.decode()
 
     # parse the message received from server and take corresponding actions
-    if receivedMessage == "":
+    if receivedMessage == "" or receivedMessage == "\r":
         print("[recv] Message from server is empty!")
     
-
     ### Auth related:
     
     # Get and send username
-    elif receivedMessage == "username authentication request" or receivedMessage == "retry username authentication request":
-        if receivedMessage == "retry username authentication request":
+    elif receivedMessage == "username authentication request\r" or receivedMessage == "retry username authentication request\r":
+        if receivedMessage == "retry username authentication request\r":
             print("Invalid Username. Please try again.")
         message = input("Username: ").strip()
         clientSocket.send(message.encode())
     # Get and send password
-    elif receivedMessage == "password authentication request" or receivedMessage == "retry password authentication request":
-        if receivedMessage == "retry password authentication request":
+    elif receivedMessage == "password authentication request\r" or receivedMessage == "retry password authentication request\r":
+        if receivedMessage == "retry password authentication request\r":
             print("Invalid Password. Please try again.")
         message = input("Password: ").strip()
         clientSocket.send(message.encode())
     # Max failed auth attempts. Account blocked.
-    elif receivedMessage == "max failed attempts":
+    elif receivedMessage == "max failed attempts\r":
         print("Invalid Password. Your account has been blocked for 10s. Please try again later")
         break
     # Attempt to login to blocked account
-    elif receivedMessage == "blocked account":
+    elif receivedMessage == "blocked account\r":
         print("Your account is blocked due to multiple authentication failures. Please try again later")
         break
-    elif receivedMessage == "username already logged in":
+    elif receivedMessage == "username already logged in\r":
         print("This username is already logged in. Try another.")
         message = input("Username: ").strip()
         clientSocket.send(message.encode())
 
+    # Disconnect
+    elif receivedMessage == "successfully disconnected\r":
+        print("Successfully logged out. Goodbye!")
+        break
+
     ### Commands:
     
     # Get command
-    elif receivedMessage == "welcome":
-        print("Welcome!")
+    elif receivedMessage == "welcome\r" or receivedMessage == "command request\r":
+        if receivedMessage == "welcome\r":
+            print("Welcome!")
         validInput = False
         while not validInput:
-            message = input("Enter one of the following commands - EDG, UED, SCS, DTE, AED, OUT: ").strip().upper()
+            message = input("Enter one of the following commands (EDG, UED, SCS, DTE, AED, OUT): ").strip().upper()
             if message not in ['EDG', 'UED', 'SCS', 'DTE', 'AED', 'OUT']:
                 print("Invalid command.")
             else:
                 validInput = True
-        clientSocket.send(message.encode())
+                clientSocket.send(message.encode())
     
-    # Disconnect
-    elif receivedMessage == "successfully disconnected":
-        print("Successfully logged out. Goodbye!")
-        break
+    # AED
+    elif re.match("^AED resp: \n.*", receivedMessage):
+        resp = re.sub("^AED resp: \n", "", receivedMessage)
+        print(resp)
 
     ### Misc:
-    elif receivedMessage == "download filename":
-        print("[recv] You need to provide the file name you want to download")
     else:
-        print("[recv] Error: Unknown server response received")
+        print(f"Error: Unknown server response received - {receivedMessage}")
 
 
 # close the socket
