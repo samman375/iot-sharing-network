@@ -59,13 +59,15 @@ while True:
     elif receivedMessage == "blocked account":
         print("Your account is blocked due to multiple authentication failures. Please try again later")
         break
+    elif receivedMessage == "username already logged in":
+        print("This username is already logged in. Try another.")
     
     ### Commands:
     
     # Get command
     elif receivedMessage == "welcome":
         print(f"Welcome!")
-        message = input("Enter one of the following commands (EDG, UED, SCS, DTE, AED, OUT): ").strip()
+        message = input("Enter one of the following commands (EDG, UED, SCS, DTE, AED, OUT): ").strip().upper()
         clientSocket.send(message.encode())
     
     ### Misc:

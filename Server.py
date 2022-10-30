@@ -164,11 +164,10 @@ def removeDevice(usernameToRemove):
             # Shift device sequence numbers down by 1
             devicesInfo[deviceName]["deviceSeqNum"] -= 1
 
-    # Recreate log file
+    # Recreate edge log file
     createEdgeDeviceLog()
 
-
-# Given a timestamp converts to format "DD Month YYYY HH:MM:SS"
+# Given a datetime timestamp converts to format "DD Month YYYY HH:MM:SS"
 def getFormattedDatetime(ts):
     return f"{ts.date} {ts.strtime("%B")} {ts.year} {ts.hour}:{ts.minute}:{ts.second}"
 
@@ -187,6 +186,7 @@ class ClientThread(Thread):
         self.clientSocket = clientSocket
         self.clientAlive = False
         self.authenticated = False
+        self.username = ''
         
         print("===== New connection created for: ", clientAddress)
         self.clientAlive = True
@@ -209,12 +209,12 @@ class ClientThread(Thread):
             data = self.clientSocket.recv(1024)
             message = data.decode()
             
-            # if the message from client is empty, the client would be off-line then set the client as offline (alive=Flase)
-            if message == 'exit':
+            if message == 'OUT':
                 self.clientAlive = False
                 self.authenticated = False
 
                 # Remove device
+                removeDevice(self.username)
 
                 print("===== the user disconnected - ", clientAddress)
                 break
@@ -259,6 +259,12 @@ class ClientThread(Thread):
                 if not checkBlocked(usernameClaim):
                     # Successful authentication
                     validUsername = True
+                else if usernameClaim in devicesInfo:
+                    # Username already logged in
+                    message = "username already logged in"
+                    print(f'[{clientAddress}:send] ' + message)
+                    self.clientSocket.send(message.encode())
+                    break
                 else:
                     # Valid credentials but account blocked
                     message = "blocked account"
@@ -294,6 +300,7 @@ class ClientThread(Thread):
                 if not checkBlocked(usernameClaim):
                     # Successful authentication
                     self.authenticated = True
+                    self.username = usernameClaim
                     message = "welcome"
                     print(f'[{clientAddress}:send] ' + message)
                     self.clientSocket.send(message.encode())
