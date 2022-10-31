@@ -32,9 +32,21 @@ while True:
     data = clientSocket.recv(1024)
     receivedMessage = data.decode()
 
-    # parse the message received from server and take corresponding actions
-    if receivedMessage == "" or receivedMessage == "\r":
+    # Error checking for empty response
+    if receivedMessage.strip() == "" or receivedMessage.strip() == "\r":
         print("[recv] Message from server is empty!")
+
+    # RC bit header used to track if standard command is required after response received
+    # Standard command is one of [EDG, UED, SCS, DTE, AED, OUT]
+    # RC1 = command required, RC0 = other (eg. username or password request)
+    commandRequested = False
+    
+    if re.match("^RC1;.*", receivedMessage):
+        commandRequested = True
+
+    # Remove RC header
+    receivedMessage = receivedMessage[4:]
+        
     
     ### Auth related:
     
@@ -74,14 +86,14 @@ while True:
     elif receivedMessage == "welcome\r" or receivedMessage == "command request\r":
         if receivedMessage == "welcome\r":
             print("Welcome!")
-        validInput = False
-        while not validInput:
-            message = input("Enter one of the following commands (EDG, UED, SCS, DTE, AED, OUT): ").strip().upper()
-            if message[0:3] not in ['EDG', 'UED', 'SCS', 'DTE', 'AED', 'OUT']:
-                print("Invalid command.")
-            else:
-                validInput = True
-                clientSocket.send(message.encode())
+        # validInput = False
+        # while not validInput:
+        #     message = input("Enter one of the following commands (EDG, UED, SCS, DTE, AED, OUT): ").strip().upper()
+        #     if message[0:3] not in ['EDG', 'UED', 'SCS', 'DTE', 'AED', 'OUT']:
+        #         print("Invalid command.")
+        #     else:
+        #         validInput = True
+        #         clientSocket.send(message.encode())
     
     # AED
     elif re.match("^AED resp: \n.*", receivedMessage):
@@ -107,6 +119,16 @@ while True:
     ### Misc:
     else:
         print(f"Error: Unknown server response received - {receivedMessage}")
+    
+    if commandRequested:
+        validInput = False
+        while not validInput:
+            message = input("Enter one of the following commands (EDG, UED, SCS, DTE, AED, OUT): ").strip().upper()
+            if message[0:3] not in ['EDG', 'UED', 'SCS', 'DTE', 'AED', 'OUT']:
+                print("Invalid command.")
+            else:
+                validInput = True
+                clientSocket.send(message.encode())
 
 
 # close the socket

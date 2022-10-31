@@ -227,7 +227,7 @@ class ClientThread(Thread):
             if message == 'OUT':
                 print(f"[{self.clientAddress}:recv] OUT")
                 
-                self.sendMessage('successfully disconnected')
+                self.sendMessage('RC0;successfully disconnected')
 
                 self.clientAlive = False
                 self.authenticated = False
@@ -250,8 +250,7 @@ class ClientThread(Thread):
                 # Ensure correct number of arguments supplied
                 args = message.split()
                 if len(args) != 3:
-                    self.sendMessage("EDG resp: \nEDG command requires fileID and dataAmount as arguments.")
-                    self.sendMessage("command request")
+                    self.sendMessage("RC1;EDG resp: \nEDG command requires fileID and dataAmount as arguments.")
                 else:
                     fileID = args[1]
                     dataAmount = args[2]
@@ -263,8 +262,7 @@ class ClientThread(Thread):
                 # Ensure correct number of arguments supplied
                 args = message.split()
                 if len(args) != 2:
-                    self.sendMessage("DTE resp: \nDTE command requires fileID as argument.")
-                    self.sendMessage("command request")
+                    self.sendMessage("RC1;DTE resp: \nDTE command requires fileID as argument.")
                 else:
                     fileID = args[1]
                     self.deleteDataFile(fileID)
@@ -276,8 +274,7 @@ class ClientThread(Thread):
                 # Ensure correct number of arguments supplied
                 args = message.split()
                 if len(args) != 3:
-                    self.sendMessage("SCS resp: \nSCS command requires fileID and computationOperation as arguments.")
-                    self.sendMessage("command request")
+                    self.sendMessage("RC1;SCS resp: \nSCS command requires fileID and computationOperation as arguments.")
                 else:
                     fileID = args[1]
                     compOp = args[2]
@@ -285,7 +282,7 @@ class ClientThread(Thread):
             
             else:
                 print(f"[{self.clientAddress}:recv] " + message)
-                self.sendMessage('Cannot understand this message')
+                self.sendMessage('RC1;Cannot understand this message')
     
     # Given a message outputs to terminal and sends to client
     def sendMessage(self, message):
@@ -305,7 +302,7 @@ class ClientThread(Thread):
         usernameClaim = ""
 
         # Initial get username from client
-        self.sendMessage('username authentication request')
+        self.sendMessage('RC0;username authentication request')
 
         # Validate username
         while not validUsername:
@@ -318,24 +315,24 @@ class ClientThread(Thread):
                     validUsername = True
                 else:
                     # Valid credentials but account blocked
-                    self.sendMessage("blocked account")
+                    self.sendMessage("RC0;blocked account")
                     return
             elif usernameClaim in devicesInfo:
                 # Username already logged in
-                self.sendMessage("username already logged in")
+                self.sendMessage("RC0;username already logged in")
             else:
                 failedAttempts += 1
                 if failedAttempts == maxFailAttempts:
                     # Max failed attempts reached. Block account
-                    self.sendMessage("max failed attempts")
+                    self.sendMessage("RC0;max failed attempts")
                     blockAccount(usernameClaim)
                     return
 
                 # Re-request username
-                self.sendMessage('retry username authentication request')
+                self.sendMessage('RC0;retry username authentication request')
 
         # Initial get password from client
-        self.sendMessage('password authentication request')
+        self.sendMessage('RC0;password authentication request')
 
         # Validate password
         while True:
@@ -347,28 +344,28 @@ class ClientThread(Thread):
                     # Successful authentication
                     self.authenticated = True
                     self.username = usernameClaim
-                    self.sendMessage("welcome")
+                    self.sendMessage("RC1;welcome")
                     addNewDevice(usernameClaim, self.clientAddress[0])
                     break
                 else:
                     # Valid credentials but account blocked
-                    self.sendMessage("blocked account")
+                    self.sendMessage("RC0;blocked account")
                     break
             else:
                 failedAttempts += 1
                 if failedAttempts == maxFailAttempts:
                     # Max failed attempts reached. Block account
-                    self.sendMessage("max failed attempts")
+                    self.sendMessage("RC0;max failed attempts")
                     blockAccount(usernameClaim)
                     break
 
                 # Re-request credentials
-                self.sendMessage('retry password authentication request')
+                self.sendMessage('RC0;retry password authentication request')
     
     # Return all other active edge devices and request new command
     def activeEdgeDevices(self):
         print(f"Edge device {self.username} issued AED command")
-        message = "AED resp: "
+        message = "RC1;AED resp: "
         
         if len(devicesInfo.keys()) == 1:
             message += "\nno other active edge devices"
@@ -383,12 +380,11 @@ class ClientThread(Thread):
                     message += f"\n{deviceName}, active since {timestamp}, IP address: {ipAddr}, UDP port number: {udpPortNum}"
         
         self.sendMessage(message)
-        self.sendMessage("command request")
     
     # Creates a new file counting from 1 to specified amount each on new line
     # File of format: USERNAME-FILEID.txt
     def edgeDataGeneration(self, fileID, dataAmount):
-        message = "EDG resp: "
+        message = "RC1;EDG resp: "
         
         try:
             # Check only integers supplied
@@ -406,23 +402,19 @@ class ClientThread(Thread):
             dateFile.write(fileOutput[:-1])
 
             message += "\nData generation done."
-            self.sendMessage(message)
-            self.sendMessage("command request")
         except:
             # Error message for when non-integers supplied
             message += "\nThe fileID or dataAmount are not integers, you need to specify the parameter as integers."
-            self.sendMessage(message)
-            self.sendMessage("command request")
+        
+        self.sendMessage(message)
     
     # Deletes requested file and logs operation if exists, else returns an error
     def deleteDataFile(self, fileID):
-        message = "DTE resp: "
+        message = "RC1;DTE resp: "
         requestedFileName = f"{self.username}-{fileID}.txt"
         # Return error if file does not exist on server side
         if not os.path.exists(requestedFileName):
             message += "\nSpecified file does not exist at the server side."
-            self.sendMessage(message)
-            self.sendMessage("command request")
         else:
             # Calculate data amount of requested file
             requestedFile = open(requestedFileName, "r")
@@ -436,12 +428,12 @@ class ClientThread(Thread):
             deletionLogFile.write(f"{self.username}; {timestamp}; {fileID}; {dataAmount}\n")
 
             message += f"\nFile with ID of {fileID} has been successfully removed from the central server."
-            self.sendMessage(message)
-            self.sendMessage("command request")
+        
+        self.sendMessage(message)
     
     # Given a fileID and a computationOperation executes requested operation on the file if valid
     def serverComputationService(self, fileID, compOp):
-        message = "SCS resp: "
+        message = "RC1;SCS resp: "
         requestedFileName = f"{self.username}-{fileID}.txt"
 
         # Allows case insensitive argument parsing
@@ -488,7 +480,6 @@ class ClientThread(Thread):
                 message += "\nThe fileID should be an integer."
         
         self.sendMessage(message)
-        self.sendMessage("command request")
 
 
 print("\n===== Server is running =====")
