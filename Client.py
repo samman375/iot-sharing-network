@@ -6,7 +6,7 @@
     By Sam Thorley (z5257239)
 """
 from socket import *
-import sys, re
+import sys, re, os
 
 # Server would be running on the same host as Client
 if len(sys.argv) != 4:
@@ -16,6 +16,8 @@ serverHost = sys.argv[1]
 serverPort = int(sys.argv[2])
 clientUDPServerPort = int(sys.argv[3])
 serverAddress = (serverHost, serverPort)
+
+username = ''
 
 # define a socket for the client side, it would be used to communicate with the server
 clientSocket = socket(AF_INET, SOCK_STREAM)
@@ -54,6 +56,7 @@ while True:
         if receivedMessage == "retry username authentication request\r":
             print("Invalid Username. Please try again.")
         message = input("Username: ").strip()
+        username = message
         clientSocket.send(message.encode())
     # Get and send password
     elif receivedMessage == "password authentication request\r" or receivedMessage == "retry password authentication request\r":
@@ -72,6 +75,7 @@ while True:
     elif receivedMessage == "username already logged in\r":
         print("This username is already logged in. Try another.")
         message = input("Username: ").strip()
+        username = message
         clientSocket.send(message.encode())
 
     # Disconnect
@@ -114,17 +118,46 @@ while True:
     elif re.match("^SCS resp: \n.*", receivedMessage):
         resp = re.sub("^SCS resp: \n", "", receivedMessage)
         print(resp)
+    
+    # UED
+    elif re.match("^UED resp: \n.*", receivedMessage):
+        resp = re.sub("^UED resp: \n", "", receivedMessage)
+        print(resp)
 
     ### Misc:
     else:
         print(f"Error: Unknown server response received - {receivedMessage}")
     
+    # If RC header was set to 1
     if commandRequested:
+        # Keep requesting a command unless valid one given
         validInput = False
         while not validInput:
             message = input("Enter one of the following commands (EDG, UED, SCS, DTE, AED, OUT): ").strip().upper()
             if message[0:3] not in ['EDG', 'UED', 'SCS', 'DTE', 'AED', 'OUT']:
                 print("Invalid command.")
+            
+            # UED command
+            elif message[0:3] == 'UED':
+                # Check arg provided
+                args = message.split()
+                if len(args) != 2:
+                    print("A fileID is needed to upload data.")
+                elif not os.path.exists(f"{username}-{args[1]}.txt"):
+                    print("The file to be uploaded does not exist.")
+                else:  
+                    validInput = True
+
+                    requestedFileName = f"{username}-{args[1]}.txt"
+                    requestedFile = open(requestedFileName, 'r')
+
+                    # Add all data from file into message on new line after header
+                    message += '\n'
+                    for line in requestedFile.readlines():
+                        message += line
+
+                    clientSocket.send(message.encode())
+
             else:
                 validInput = True
                 clientSocket.send(message.encode())

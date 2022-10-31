@@ -27,6 +27,7 @@ nDevicesLock = Lock()
 credentialsFileName = "credentials.txt"
 edgeDeviceLogFileName = "edge-device-log.txt"
 deletionLogFileName = "deletion-log.txt"
+uploadLogFileName = "upload-log.txt"
 
 """
     Server setup
@@ -120,8 +121,6 @@ def createEdgeDeviceLog():
     # Remove existing log file if exists
     if os.path.exists(edgeDeviceLogFileName):
         os.remove(edgeDeviceLogFileName)
-
-    logFile = open(edgeDeviceLogFileName, "a")
     
     # Create dictionary with seqNum as key and deviceName as value to be used in sort
     seqNums = {}
@@ -280,6 +279,19 @@ class ClientThread(Thread):
                     compOp = args[2]
                     self.serverComputationService(fileID, compOp)
             
+            # UED command
+            # Usage: UED fileID
+            elif re.match("^UED.*", message):
+                # Error handling done on client side in this case
+                args = message.split()
+                fileID = args[1]
+
+                # File data is everything after "UED {fileID}\n"
+                # Remove everything before first '\n'
+                fileData = message[(message.find("\n") + 1):]
+
+                self.uploadEdgeData(fileID, fileData)
+
             else:
                 print(f"[{self.clientAddress}:recv] " + message)
                 self.sendMessage('RC1;Cannot understand this message')
@@ -400,6 +412,7 @@ class ClientThread(Thread):
             
             # Write to file removing trailing new line
             dateFile.write(fileOutput[:-1])
+            dateFile.close()
 
             message += "\nData generation done."
         except:
@@ -419,6 +432,7 @@ class ClientThread(Thread):
             # Calculate data amount of requested file
             requestedFile = open(requestedFileName, "r")
             dataAmount = len(requestedFile.readlines())
+            requestedFile.close()
             
             os.remove(requestedFileName)
 
@@ -426,6 +440,7 @@ class ClientThread(Thread):
             deletionLogFile = open(deletionLogFileName, "a")
             timestamp = getFormattedDatetime(datetime.now())
             deletionLogFile.write(f"{self.username}; {timestamp}; {fileID}; {dataAmount}\n")
+            deletionLogFile.close()
 
             message += f"\nFile with ID of {fileID} has been successfully removed from the central server."
         
@@ -452,6 +467,7 @@ class ClientThread(Thread):
                 else:
                     requestedFile = open(requestedFileName, 'r')
                     requestedFileLines = requestedFile.readlines()
+                    requestedFile.close()
 
                     fileNums = []
                     
@@ -480,6 +496,30 @@ class ClientThread(Thread):
                 message += "\nThe fileID should be an integer."
         
         self.sendMessage(message)
+    
+    # Given a fileID and fileData creates that file, and logs action
+    def uploadEdgeData(self, fileID, fileData):
+        messageToSend = "RC1;UED resp: "
+        receivedFileName = f"{self.username}-{fileID}.txt"
+
+        # Output file onto server
+        receivedFile = open(receivedFileName, 'w+')
+        receivedFile.write(fileData)
+
+        # Add to upload log
+        uploadLogFile = open(uploadLogFileName, "a")
+        timestamp = getFormattedDatetime(datetime.now())
+        dataAmount = len(receivedFile.readlines())
+        uploadLogFile.write(f"{self.username}; {timestamp}; {fileID}; {dataAmount}\n")
+
+        uploadLogFile.close()
+        receivedFile.close()
+
+        # Send success response back to client
+        messageToSend += f"\nFile with ID {fileID} successfully received by server."
+        self.sendMessage(messageToSend)
+
+        # remove commented code from refactoring earlier on client side
 
 
 print("\n===== Server is running =====")
