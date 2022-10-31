@@ -32,10 +32,6 @@ while True:
     data = clientSocket.recv(1024)
     receivedMessage = data.decode()
 
-    # Error checking for empty response
-    if receivedMessage.strip() == "" or receivedMessage.strip() == "\r":
-        print("[recv] Message from server is empty!")
-
     # RC bit header used to track if standard command is required after response received
     # Standard command is one of [EDG, UED, SCS, DTE, AED, OUT]
     # RC1 = command required, RC0 = other (eg. username or password request)
@@ -46,7 +42,10 @@ while True:
 
     # Remove RC header
     receivedMessage = receivedMessage[4:]
-        
+
+    # Error checking for empty response
+    if receivedMessage.strip() == "" or receivedMessage.strip() == "\r":
+        print("[recv] Message from server is empty!") 
     
     ### Auth related:
     
