@@ -269,6 +269,20 @@ class ClientThread(Thread):
                     fileID = args[1]
                     self.deleteDataFile(fileID)
             
+            # SCS command
+            # Usage: SCS fileID compuationOperation
+            # computationOperation must be one of [AVERAGE, MAX, MIN, SUM]
+            elif re.match("^SCS.*", message):
+                # Ensure correct number of arguments supplied
+                args = message.split()
+                if len(args) != 3:
+                    self.sendMessage("SCS resp: \nSCS command requires fileID and computationOperation as arguments.")
+                    self.sendMessage("command request")
+                else:
+                    fileID = args[1]
+                    compOp = args[2]
+                    self.serverComputationService(fileID, compOp)
+            
             else:
                 print(f"[{self.clientAddress}:recv] " + message)
                 self.sendMessage('Cannot understand this message')
@@ -424,6 +438,58 @@ class ClientThread(Thread):
             message += f"\nFile with ID of {fileID} has been successfully removed from the central server."
             self.sendMessage(message)
             self.sendMessage("command request")
+    
+    # Given a fileID and a computationOperation executes requested operation on the file if valid
+    def serverComputationService(self, fileID, compOp):
+        message = "SCS resp: "
+        requestedFileName = f"{self.username}-{fileID}.txt"
+
+        # Allows case insensitive argument parsing
+        upperCompOp = compOp.upper()
+
+        if not os.path.exists(requestedFileName):
+            message += "\nSpecified file does not exist at the server side."
+        else: 
+            try:
+                # Check only integer supplied for fileID
+                fileIDInt = int(fileID)
+
+                # Check valid operation requested
+                if upperCompOp not in ['SUM', 'AVERAGE', 'MAX', 'MIN']:
+                    message += "\nThe computationOperation must be one of [SUM, AVERAGE, MAX, MIN]."
+                else:
+                    requestedFile = open(requestedFileName, 'r')
+                    requestedFileLines = requestedFile.readlines()
+
+                    fileNums = []
+                    
+                    for line in requestedFileLines:
+                        try:
+                            fileNums.append(int(line.strip()))
+                        except:
+                            # Skip line if not integer
+                            continue
+                    
+                    # Execute computation
+                    if len(fileNums) == 0:
+                        # Return Null if no numbers in file
+                        message += "\nNull"
+                    elif upperCompOp == 'SUM':
+                        message += f"\n{sum(fileNums)}"
+                    elif upperCompOp == 'AVERAGE':
+                        message += f"\n{sum(fileNums)/len(fileNums)}"
+                    elif upperCompOp == 'MAX':
+                        message += f"\n{max(fileNums)}"
+                    elif upperCompOp == 'MIN':
+                        message += f"\n{min(fileNums)}"
+                
+            except:
+                # Error message for when non-integer fileID supplied
+                message += "\nThe fileID should be an integer."
+        
+        self.sendMessage(message)
+        self.sendMessage("command request")
+
 
 print("\n===== Server is running =====")
 print("===== Waiting for connection request from clients...=====")

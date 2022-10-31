@@ -98,6 +98,11 @@ while True:
     elif re.match("^DTE resp: \n.*", receivedMessage):
         resp = re.sub("^DTE resp: \n", "", receivedMessage)
         print(resp)
+    
+    # SCS
+    elif re.match("^SCS resp: \n.*", receivedMessage):
+        resp = re.sub("^SCS resp: \n", "", receivedMessage)
+        print(resp)
 
     ### Misc:
     else:
