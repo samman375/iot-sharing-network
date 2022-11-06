@@ -8,7 +8,7 @@
 from datetime import datetime
 from socket import *
 from threading import Thread, Lock
-import sys, select, time, os, re
+import sys, time, os, re
 
 """
     Data structs & Global variables
@@ -43,7 +43,9 @@ maxFailAttempts = int(sys.argv[2])
 serverAddress = (serverHost, serverPort)
 
 if maxFailAttempts < 1 or maxFailAttempts > 5:
-    print("\nError usage: NUM_CONSECUTIVE_FAIL_ATTEMPTS must be between 1 and 5 (inclusive)")
+    print(
+        "\nError usage: NUM_CONSECUTIVE_FAIL_ATTEMPTS must be between 1 and 5 (inclusive)"
+    )
     exit(0)
 
 # Define socket for the server side and bind address
@@ -72,6 +74,7 @@ def usernameLookup(username):
             return True
     return False
 
+
 # Given a username and password looks for it in credentials file
 def passwordLookup(username, password):
     credsFile = open(credentialsFileName, "r")
@@ -88,6 +91,7 @@ def passwordLookup(username, password):
                 return False
     return False
 
+
 # Given a username blocks that account for 10s
 def blockAccount(username):
     blockedAccountsLock.acquire()
@@ -100,6 +104,7 @@ def blockAccount(username):
     blockedAccounts.remove(username)
     blockedAccountsLock.release()
 
+
 # Given a username checks if that account is currently blocked
 def checkBlocked(username):
     blockedAccountsLock.acquire()
@@ -110,18 +115,20 @@ def checkBlocked(username):
         blockedAccountsLock.release()
         return False
 
+
 # Given a string writes it to the edge device log
 def writeToEdgeDeviceLog(logString):
     edgeDeviceLogFile = open(edgeDeviceLogFileName, "a")
     edgeDeviceLogFile.write(logString)
     edgeDeviceLogFile.close()
 
+
 # Writes edge device log based off data in devicesInfo object in order of seqNum
-def createEdgeDeviceLog(): 
+def createEdgeDeviceLog():
     # Remove existing log file if exists
     if os.path.exists(edgeDeviceLogFileName):
         os.remove(edgeDeviceLogFileName)
-    
+
     # Create dictionary with seqNum as key and deviceName as value to be used in sort
     seqNums = {}
     for deviceName in devicesInfo:
@@ -138,6 +145,7 @@ def createEdgeDeviceLog():
         logString = f"{seqNum}; {timestamp}; {username}; {deviceIPAddr}; {UDPPortNum}\n"
         writeToEdgeDeviceLog(logString)
 
+
 # Add new device to network
 # Intialises device information in global struct and add to log file
 def addNewDevice(username, clientIPAddr):
@@ -148,8 +156,8 @@ def addNewDevice(username, clientIPAddr):
     nDevicesLock.release()
 
     timestamp = getFormattedDatetime(datetime.now())
-    UDPPortNum = 0                                      # TODO
-    
+    UDPPortNum = 0  # TODO
+
     # Add device to devices object
     deviceObj = {}
     deviceObj["timestamp"] = timestamp
@@ -160,6 +168,7 @@ def addNewDevice(username, clientIPAddr):
 
     # Update edge device log
     createEdgeDeviceLog()
+
 
 # Remove device from network
 def removeDevice(usernameToRemove):
@@ -179,9 +188,11 @@ def removeDevice(usernameToRemove):
     # Recreate edge log file
     createEdgeDeviceLog()
 
+
 # Given a datetime timestamp converts to format "DD Month YYYY HH:MM:SS"
 def getFormattedDatetime(ts):
     return ts.strftime("%d %B %Y %H:%M:%S")
+
 
 """
     Define multi-thread class for client
@@ -191,6 +202,8 @@ def getFormattedDatetime(ts):
     request to the server, the server will call class (ClientThread) again and create a thread
     for client-2. Each client will be runing in a separate therad, which is the multi-threading
 """
+
+
 class ClientThread(Thread):
     def __init__(self, clientAddress, clientSocket):
         Thread.__init__(self)
@@ -198,16 +211,16 @@ class ClientThread(Thread):
         self.clientSocket = clientSocket
         self.clientAlive = False
         self.authenticated = False
-        self.username = ''
-        
+        self.username = ""
+
         print("===== New connection created for: ", self.clientAddress)
         self.clientAlive = True
-        
+
     def run(self):
-        message = ''
-        
+        message = ""
+
         while self.clientAlive:
-            
+
             if not self.authenticated:
                 self.promptLogin()
 
@@ -216,17 +229,17 @@ class ClientThread(Thread):
                     self.clientAlive = False
                     print("===== user killed - ", self.clientAddress)
                     break
-            
+
             # Receive message from the client
             data = self.clientSocket.recv(1024)
             message = data.decode()
-            
+
             # OUT command
             # Usage: OUT
-            if message == 'OUT':
+            if message == "OUT":
                 print(f"[{self.clientAddress}:recv] OUT")
-                
-                self.sendMessage('RC0;successfully disconnected')
+
+                self.sendMessage("RC0;successfully disconnected")
 
                 self.clientAlive = False
                 self.authenticated = False
@@ -236,36 +249,40 @@ class ClientThread(Thread):
 
                 print("===== the user disconnected - ", self.clientAddress)
                 break
-            
+
             # AED command
             # Usage: AED
-            elif message == 'AED':
+            elif message == "AED":
                 print(f"[{self.clientAddress}:recv] AED")
                 self.activeEdgeDevices()
-            
+
             # EDG command
             # Usage: EDG fileID dataAmount
             elif re.match("^EDG.*", message):
                 # Ensure correct number of arguments supplied
                 args = message.split()
                 if len(args) != 3:
-                    self.sendMessage("RC1;EDG resp: \nEDG command requires fileID and dataAmount as arguments.")
+                    self.sendMessage(
+                        "RC1;EDG resp: \nEDG command requires fileID and dataAmount as arguments."
+                    )
                 else:
                     fileID = args[1]
                     dataAmount = args[2]
                     self.edgeDataGeneration(fileID, dataAmount)
-            
+
             # DTE command
             # Usage: DTE fileID
             elif re.match("^DTE.*", message):
                 # Ensure correct number of arguments supplied
                 args = message.split()
                 if len(args) != 2:
-                    self.sendMessage("RC1;DTE resp: \nDTE command requires fileID as argument.")
+                    self.sendMessage(
+                        "RC1;DTE resp: \nDTE command requires fileID as argument."
+                    )
                 else:
                     fileID = args[1]
                     self.deleteDataFile(fileID)
-            
+
             # SCS command
             # Usage: SCS fileID compuationOperation
             # computationOperation must be one of [AVERAGE, MAX, MIN, SUM]
@@ -273,12 +290,14 @@ class ClientThread(Thread):
                 # Ensure correct number of arguments supplied
                 args = message.split()
                 if len(args) != 3:
-                    self.sendMessage("RC1;SCS resp: \nSCS command requires fileID and computationOperation as arguments.")
+                    self.sendMessage(
+                        "RC1;SCS resp: \nSCS command requires fileID and computationOperation as arguments."
+                    )
                 else:
                     fileID = args[1]
                     compOp = args[2]
                     self.serverComputationService(fileID, compOp)
-            
+
             # UED command
             # Usage: UED fileID
             elif re.match("^UED.*", message):
@@ -288,17 +307,17 @@ class ClientThread(Thread):
 
                 # File data is everything after "UED {fileID}\n"
                 # Remove everything before first '\n'
-                fileData = message[(message.find("\n") + 1):]
+                fileData = message[(message.find("\n") + 1) :]
 
                 self.uploadEdgeData(fileID, fileData)
 
             else:
                 print(f"[{self.clientAddress}:recv] " + message)
-                self.sendMessage('RC1;Cannot understand this message')
-    
+                self.sendMessage("RC1;Cannot understand this message")
+
     # Given a message outputs to terminal and sends to client
     def sendMessage(self, message):
-        message += '\r'
+        message += "\r"
         print(f"[{clientAddress}:send] " + message)
         self.clientSocket.send(message.encode())
 
@@ -314,13 +333,13 @@ class ClientThread(Thread):
         usernameClaim = ""
 
         # Initial get username from client
-        self.sendMessage('RC0;username authentication request')
+        self.sendMessage("RC0;username authentication request")
 
         # Validate username
         while not validUsername:
             data = self.clientSocket.recv(1024)
             usernameClaim = data.decode()
-            
+
             if usernameLookup(usernameClaim) and usernameClaim not in devicesInfo:
                 if not checkBlocked(usernameClaim):
                     # Successful username
@@ -341,16 +360,16 @@ class ClientThread(Thread):
                     return
 
                 # Re-request username
-                self.sendMessage('RC0;retry username authentication request')
+                self.sendMessage("RC0;retry username authentication request")
 
         # Initial get password from client
-        self.sendMessage('RC0;password authentication request')
+        self.sendMessage("RC0;password authentication request")
 
         # Validate password
         while True:
             data = self.clientSocket.recv(1024)
             passwordClaim = data.decode()
-            
+
             if passwordLookup(usernameClaim, passwordClaim):
                 if not checkBlocked(usernameClaim):
                     # Successful authentication
@@ -372,13 +391,13 @@ class ClientThread(Thread):
                     break
 
                 # Re-request credentials
-                self.sendMessage('RC0;retry password authentication request')
-    
+                self.sendMessage("RC0;retry password authentication request")
+
     # Return all other active edge devices and request new command
     def activeEdgeDevices(self):
         print(f"Edge device {self.username} issued AED command")
         message = "RC1;AED resp: "
-        
+
         if len(devicesInfo.keys()) == 1:
             message += "\nno other active edge devices"
         else:
@@ -390,14 +409,14 @@ class ClientThread(Thread):
                     ipAddr = devicesInfo[deviceName]["deviceIPAddr"][0]
                     udpPortNum = devicesInfo[deviceName]["UDPPortNum"]
                     message += f"\n{deviceName}, active since {timestamp}, IP address: {ipAddr}, UDP port number: {udpPortNum}"
-        
+
         self.sendMessage(message)
-    
+
     # Creates a new file counting from 1 to specified amount each on new line
     # File of format: USERNAME-FILEID.txt
     def edgeDataGeneration(self, fileID, dataAmount):
         message = "RC1;EDG resp: "
-        
+
         try:
             # Check only integers supplied
             fileIDInt = int(fileID)
@@ -409,7 +428,7 @@ class ClientThread(Thread):
             # Data generated always from 1 to specified amount
             for i in range(1, dataAmountInt + 1):
                 fileOutput += f"{i}\n"
-            
+
             # Write to file removing trailing new line
             dateFile.write(fileOutput[:-1])
             dateFile.close()
@@ -418,9 +437,9 @@ class ClientThread(Thread):
         except:
             # Error message for when non-integers supplied
             message += "\nThe fileID or dataAmount are not integers, you need to specify the parameter as integers."
-        
+
         self.sendMessage(message)
-    
+
     # Deletes requested file and logs operation if exists, else returns an error
     def deleteDataFile(self, fileID):
         message = "RC1;DTE resp: "
@@ -433,19 +452,21 @@ class ClientThread(Thread):
             requestedFile = open(requestedFileName, "r")
             dataAmount = len(requestedFile.readlines())
             requestedFile.close()
-            
+
             os.remove(requestedFileName)
 
             # Append to deletion log
             deletionLogFile = open(deletionLogFileName, "a")
             timestamp = getFormattedDatetime(datetime.now())
-            deletionLogFile.write(f"{self.username}; {timestamp}; {fileID}; {dataAmount}\n")
+            deletionLogFile.write(
+                f"{self.username}; {timestamp}; {fileID}; {dataAmount}\n"
+            )
             deletionLogFile.close()
 
             message += f"\nFile with ID of {fileID} has been successfully removed from the central server."
-        
+
         self.sendMessage(message)
-    
+
     # Given a fileID and a computationOperation executes requested operation on the file if valid
     def serverComputationService(self, fileID, compOp):
         message = "RC1;SCS resp: "
@@ -456,54 +477,54 @@ class ClientThread(Thread):
 
         if not os.path.exists(requestedFileName):
             message += "\nSpecified file does not exist at the server side."
-        else: 
+        else:
             try:
                 # Check only integer supplied for fileID
                 fileIDInt = int(fileID)
 
                 # Check valid operation requested
-                if upperCompOp not in ['SUM', 'AVERAGE', 'MAX', 'MIN']:
+                if upperCompOp not in ["SUM", "AVERAGE", "MAX", "MIN"]:
                     message += "\nThe computationOperation must be one of [SUM, AVERAGE, MAX, MIN]."
                 else:
-                    requestedFile = open(requestedFileName, 'r')
+                    requestedFile = open(requestedFileName, "r")
                     requestedFileLines = requestedFile.readlines()
                     requestedFile.close()
 
                     fileNums = []
-                    
+
                     for line in requestedFileLines:
                         try:
                             fileNums.append(int(line.strip()))
                         except:
                             # Skip line if not integer
                             continue
-                    
+
                     # Execute computation
                     if len(fileNums) == 0:
                         # Return Null if no numbers in file
                         message += "\nNull"
-                    elif upperCompOp == 'SUM':
+                    elif upperCompOp == "SUM":
                         message += f"\n{sum(fileNums)}"
-                    elif upperCompOp == 'AVERAGE':
+                    elif upperCompOp == "AVERAGE":
                         message += f"\n{sum(fileNums)/len(fileNums)}"
-                    elif upperCompOp == 'MAX':
+                    elif upperCompOp == "MAX":
                         message += f"\n{max(fileNums)}"
-                    elif upperCompOp == 'MIN':
+                    elif upperCompOp == "MIN":
                         message += f"\n{min(fileNums)}"
-                
+
             except:
                 # Error message for when non-integer fileID supplied
                 message += "\nThe fileID should be an integer."
-        
+
         self.sendMessage(message)
-    
+
     # Given a fileID and fileData creates that file, and logs action
     def uploadEdgeData(self, fileID, fileData):
         messageToSend = "RC1;UED resp: "
         receivedFileName = f"{self.username}-{fileID}.txt"
 
         # Output file onto server
-        receivedFile = open(receivedFileName, 'w+')
+        receivedFile = open(receivedFileName, "w+")
         receivedFile.write(fileData)
 
         # Add to upload log
