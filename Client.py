@@ -272,13 +272,15 @@ class TCPThread(Thread):
                                     message.encode("utf-8"), (address, port)
                                 )
 
-                                # Break file into packets reading 4096 bytes at a time and send
+                                # TODO: Break file into packets reading 4096 bytes at a time and send
 
                                 print(f"{fileName} sent to {deviceName}.")
                     else:
                         validInput = True
                         clientSocket.send(message.encode())
 
+
+# TODO: Create the 2 threads, may need to pass them arguments
 
 # close the socket
 clientSocket.close()
