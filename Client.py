@@ -256,7 +256,6 @@ class TCPThread(Thread):
                             if deviceDetails == None:
                                 print(f"{deviceName} is offline.")
                             else:
-                                # address, port = deviceDetails
                                 packetSize = 4096
 
                                 # Calculate number of packets
@@ -281,14 +280,14 @@ class TCPThread(Thread):
                                     if packet == b"":
                                         break
 
-                                    time.sleep(1)
+                                    time.sleep(0.25)
                                     print(
-                                        f"Sending packet {sentPackets}/{nPackets} ({math.ceil(sentPackets/nPackets)}%)"
+                                        f"Sending packet {sentPackets}/{nPackets} ({math.floor(100 * sentPackets/nPackets)}%)"
                                     )
                                     clientUDPSocket.sendto(packet, deviceDetails)
 
                                 byteFile.close()
-                                print(f"{fileName} sent to {deviceName}.")
+                                print(f"{fileName} successfully sent to {deviceName}.")
                     else:
                         validInput = True
                         clientSocket.send(message.encode())
