@@ -195,12 +195,7 @@ def getFormattedDatetime(ts):
 
 
 """
-    Define multi-thread class for client
-    This class would be used to define the instance for each connection from each client
-    For example, client-1 makes a connection request to the server, the server will call
-    class (ClientThread) to define a thread for client-1, and when client-2 make a connection
-    request to the server, the server will call class (ClientThread) again and create a thread
-    for client-2. Each client will be runing in a separate therad, which is the multi-threading
+    Main thread for clients. One is created for each connection received.
 """
 
 
@@ -217,14 +212,14 @@ class ClientThread(Thread):
         self.clientAlive = True
 
     def run(self):
+        # Variable used to store message to send/receive
         message = ""
 
         while self.clientAlive:
-
             if not self.authenticated:
                 self.promptLogin()
 
-                # If still not authenticated user reached fail limit
+                # If still not authenticated user reached maximum fail limit
                 if not self.authenticated:
                     self.clientAlive = False
                     print("===== user killed - ", self.clientAddress)
@@ -259,7 +254,6 @@ class ClientThread(Thread):
             # EDG command
             # Usage: EDG fileID dataAmount
             elif re.match("^EDG.*", message):
-                # Ensure correct number of arguments supplied
                 args = message.split()
                 if len(args) != 3:
                     self.sendMessage(
@@ -273,7 +267,6 @@ class ClientThread(Thread):
             # DTE command
             # Usage: DTE fileID
             elif re.match("^DTE.*", message):
-                # Ensure correct number of arguments supplied
                 args = message.split()
                 if len(args) != 2:
                     self.sendMessage(
@@ -308,12 +301,17 @@ class ClientThread(Thread):
                 # File data is everything after "UED {fileID}\n"
                 # Remove everything before first '\n'
                 fileData = message[(message.find("\n") + 1) :]
-
                 self.uploadEdgeData(fileID, fileData)
 
+            # Fallback error
+            # Re-request a command
             else:
                 print(f"[{self.clientAddress}:recv] " + message)
                 self.sendMessage("RC1;Cannot understand this message")
+
+    """
+        Helper function:
+    """
 
     # Given a message outputs to terminal and sends to client
     def sendMessage(self, message):
@@ -322,8 +320,7 @@ class ClientThread(Thread):
         self.clientSocket.send(message.encode())
 
     """
-        You can create more customized APIs here, e.g., logic for processing user authentication
-        Each api can be used to handle one specific function
+        Functions to run each command:
     """
 
     # Authenticate User
@@ -395,7 +392,7 @@ class ClientThread(Thread):
                 # Re-request credentials
                 self.sendMessage("RC0;retry password authentication request")
 
-    # Return all other active edge devices and request new command
+    # Return all other active edge devices, excluding requesting client
     def activeEdgeDevices(self):
         print(f"Edge device {self.username} issued AED command")
         message = "RC1;AED resp: "

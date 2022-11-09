@@ -20,26 +20,28 @@ serverPort = int(sys.argv[2])
 clientUDPServerPort = int(sys.argv[3])
 serverAddress = (serverHost, serverPort)
 
+# Ensure provided UDP port is in valid range
 if clientUDPServerPort < 1024 or clientUDPServerPort > 65535:
     print("Error: Invalid CLIENT_UDP_SERVER_PORT. Must be in range [1024, 65535].")
     exit(0)
 
-username = ""
-
-# define a TCP and UDP socket for the client side, it would be used to communicate with the server
-clientSocket = socket(AF_INET, SOCK_STREAM)
+# Define a TCP and UDP socket for the client side
+clientTCPSocket = socket(AF_INET, SOCK_STREAM)
 clientUDPSocket = socket(AF_INET, SOCK_DGRAM)
 
-# build connection with the server and send message to it
-clientSocket.connect(serverAddress)
+# Build connection with the server and send message to it
+clientTCPSocket.connect(serverAddress)
 clientUDPSocket.bind(("", clientUDPServerPort))
 
-# Allow UDP Thread to be killed with the TCP one exits
+# Allow listener thread to be killed when the interactive one dies
 clientUDPSocket.settimeout(0)
 killUDPThread = False
 
+username = ""
 
-class UDPThread(Thread):
+# Constantly running daemon thread to allow UDP contact from another client for UVF command
+# Initialised at startup and killed when 'OUT' command run via the interactive thread
+class ListenerThread(Thread):
     def __init__(self):
         Thread.__init__(self)
 
@@ -47,15 +49,18 @@ class UDPThread(Thread):
         while not killUDPThread:
             # Non-blocking recvfrom() to allow thread to be killed
             try:
-                # Receive header message from another client
+                # Receive header message from other client
                 data, recvAddress = clientUDPSocket.recvfrom(4096)
             except:
                 continue
+
+            # 'latin-1' encoding used as 'utf-8' fails for some reason
             message = data.decode("latin-1")
-            # Very simple error checking
+
             if message[0:3] != "UVF":
                 print(f"\nCorrupted UVF file from {recvAddress} received.")
             else:
+                # Extract information from header
                 message = message.split()
                 fileName = message[1]
                 nPacketsToRecv = int(message[2])
@@ -63,35 +68,33 @@ class UDPThread(Thread):
 
                 outFile = open(fileName, "ab")
 
-                # Temporarily remove socket blocking for file transfer
+                # Temporarily remove socket non-blocking for file transfer
                 clientUDPSocket.settimeout(5)
 
                 # Receive and write each packet to file
                 for i in range(0, nPacketsToRecv):
                     data, recvAddress = clientUDPSocket.recvfrom(4096)
-
                     outFile.write(data)
 
                 outFile.close()
-
                 print(f"\nFile {fileName} received from {senderDevice}")
 
-            # Reinstate socket blocking
+            # Reinstate socket non-blocking
             clientUDPSocket.settimeout(0)
 
 
-# Main interaction thread
-class TCPThread(Thread):
+# Main thread to allow interaction for a user
+class InteractiveThread(Thread):
     def __init__(self):
         Thread.__init__(self)
 
     def run(self):
         while True:
-            # receive response from the server
-            data = clientSocket.recv(1024)
+            # Receive response from the server
+            data = clientTCPSocket.recv(1024)
             receivedMessage = data.decode()
 
-            # RC bit header used to track if standard command is required after response received
+            # RC bit header used to track if a standard command is required after response received
             # Standard command is one of [EDG, UED, SCS, DTE, AED, OUT]
             # RC1 = command required, RC0 = other (eg. username or password request)
             commandRequested = False
@@ -106,7 +109,7 @@ class TCPThread(Thread):
             if receivedMessage.strip() == "" or receivedMessage.strip() == "\r":
                 print("[recv] Message from server is empty!")
 
-            ### Auth related:
+            ### Auth related responses:
 
             # Get and send username
             elif (
@@ -119,7 +122,7 @@ class TCPThread(Thread):
                 username = message
                 # UDP Server Port sent with username
                 message += f" {clientUDPServerPort}"
-                clientSocket.send(message.encode())
+                clientTCPSocket.send(message.encode())
 
             # Get and send password
             elif (
@@ -129,7 +132,7 @@ class TCPThread(Thread):
                 if receivedMessage == "retry password authentication request\r":
                     print("Invalid Password. Please try again.")
                 message = input("Password: ").strip()
-                clientSocket.send(message.encode())
+                clientTCPSocket.send(message.encode())
 
             # Max failed auth attempts. Account blocked.
             elif receivedMessage == "max failed attempts\r":
@@ -148,7 +151,7 @@ class TCPThread(Thread):
                 print("This username is already logged in. Try another.")
                 message = input("Username: ").strip()
                 username = message
-                clientSocket.send(message.encode())
+                clientTCPSocket.send(message.encode())
 
             # Disconnect
             elif receivedMessage == "successfully disconnected\r":
@@ -158,11 +161,13 @@ class TCPThread(Thread):
                 print("Successfully logged out. Goodbye!")
                 break
 
-            ### Commands:
+            ### Command-related responses:
 
             # Get command
             elif (
-                receivedMessage == "welcome\r" or receivedMessage == "command request\r"
+                receivedMessage == "welcome\r"
+                or receivedMessage == "command request\r"
+                or receivedMessage == "Cannot understand this message\r"
             ):
                 if receivedMessage == "welcome\r":
                     print("Welcome!")
@@ -199,7 +204,7 @@ class TCPThread(Thread):
 
             # If RC header was set to 1
             if commandRequested:
-                # Keep requesting a command unless valid one given
+                # Keep prompting a command from user unless valid one given
                 validInput = False
                 while not validInput:
                     message = input(
@@ -237,8 +242,9 @@ class TCPThread(Thread):
                             for line in requestedFile.readlines():
                                 message += line
 
-                            clientSocket.send(message.encode())
+                            clientTCPSocket.send(message.encode())
 
+                    # UVF command
                     elif message[0:3] == "UVF":
                         # Check args provided
                         args = message.split()
@@ -276,7 +282,7 @@ class TCPThread(Thread):
                                     packet = byteFile.read(packetSize)
                                     sentPackets += 1
 
-                                    # Break on empty packet
+                                    # Exit loop on empty packet
                                     if packet == b"":
                                         break
 
@@ -290,22 +296,25 @@ class TCPThread(Thread):
                                 print(f"{fileName} successfully sent to {deviceName}.")
                     else:
                         validInput = True
-                        clientSocket.send(message.encode())
+                        clientTCPSocket.send(message.encode())
 
     # Given a deviceName, checks it is active and gets address and port via AED command
     # Return None if device not found, otherwise a tuple with address and port
     def getDeviceDetails(self, deviceName):
         # Send and receive AED command
-        clientSocket.send("AED".encode())
-        data = clientSocket.recv(1024)
+        clientTCPSocket.send("AED".encode())
+        data = clientTCPSocket.recv(1024)
         receivedAED = data.decode()
 
         # Extract information from AED output
         # Example AED ouput:
-        # test2, active since 09 November 2022 14:18:07, IP address: 1, UDP port number: 0
+        # 'test2, active since 09 November 2022 14:18:07, IP address: 1, UDP port number: 0'
         devicesInfo = receivedAED.split("\n")
+
         # Remove header line
         devicesInfo = devicesInfo[1:]
+
+        # Scrape required information
         if devicesInfo[0] == "no other active edge devices":
             return None
         else:
@@ -320,15 +329,15 @@ class TCPThread(Thread):
         return None
 
 
-udpThread = UDPThread()
-tcpThread = TCPThread()
-udpThread.start()
-tcpThread.start()
+# Create the main and listener threads
+listenerThread = ListenerThread()
+intThread = InteractiveThread()
+listenerThread.start()
+intThread.start()
 
-# Create the 2 threads
-while tcpThread.is_alive() and udpThread.is_alive():
+# Close the sockets after threads are killed
+while intThread.is_alive() and listenerThread.is_alive():
     continue
 
-# close the sockets
-# clientSocket.close()
-# clientUDPSocket.close()
+clientTCPSocket.close()
+clientUDPSocket.close()
