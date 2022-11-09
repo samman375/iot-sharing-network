@@ -51,28 +51,34 @@ class UDPThread(Thread):
                 data, recvAddress = clientUDPSocket.recvfrom(4096)
             except:
                 continue
-
-            message = data.decode("utf-8")
-
+            message = data.decode("latin-1")
+            print(message)
             # Very simple error checking
-            if message[0:3] != "UVF" or message.split() != 4:
-                print(f"Corrupted UVF file from {recvAddress} received.")
+            if message[0:3] != "UVF":
+                print(f"\nCorrupted UVF file from {recvAddress} received.")
             else:
                 message = message.split()
                 fileName = message[1]
-                nPacketsToRecv = message[2]
+                nPacketsToRecv = int(message[2])
                 senderDevice = message[3]
 
                 outFile = open(fileName, "ab")
 
+                # Temporarily remove socket blocking for file transfer
+                clientUDPSocket.settimeout(5)
+
                 # Receive and write each packet to file
                 for i in range(0, nPacketsToRecv):
                     data, recvAddress = clientUDPSocket.recvfrom(4096)
+
                     outFile.write(data)
 
                 outFile.close()
 
-                print(f"File {fileName} received from {senderDevice}")
+                print(f"\nFile {fileName} received from {senderDevice}")
+
+            # Reinstate socket blocking
+            clientUDPSocket.settimeout(0)
 
 
 # Main interaction thread
@@ -261,22 +267,26 @@ class TCPThread(Thread):
                                 # Create and send header
                                 message = f"UVF {fileName} {nPackets} {username}"
                                 clientUDPSocket.sendto(
-                                    bytes(message, encoding="utf-8"), deviceDetails
+                                    message.encode("latin-1"), deviceDetails
                                 )
 
                                 # Break file into packets reading 4096 bytes at a time and send
                                 # Adapted from: https://stackoverflow.com/questions/6787233/python-how-to-read-bytes-from-file-and-save-it
                                 byteFile = open(fileName, "rb")
+                                sentPackets = 0
                                 while True:
                                     packet = byteFile.read(packetSize)
+                                    sentPackets += 1
 
                                     # Break on empty packet
                                     if packet == b"":
                                         break
 
                                     time.sleep(1)
+                                    print(f"Sending packet {sentPackets}/{nPackets}.")
                                     clientUDPSocket.sendto(packet, deviceDetails)
 
+                                byteFile.close()
                                 print(f"{fileName} sent to {deviceName}.")
                     else:
                         validInput = True
