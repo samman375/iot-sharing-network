@@ -418,7 +418,7 @@ class ClientThread(Thread):
 
         try:
             # Check only integers supplied
-            fileIDInt = int(fileID)
+            int(fileID)
             dataAmountInt = int(dataAmount)
 
             dateFile = open(f"{self.username}-{fileID}.txt", "w")
@@ -479,7 +479,7 @@ class ClientThread(Thread):
         else:
             try:
                 # Check only integer supplied for fileID
-                fileIDInt = int(fileID)
+                int(fileID)
 
                 # Check valid operation requested
                 if upperCompOp not in ["SUM", "AVERAGE", "MAX", "MIN"]:
