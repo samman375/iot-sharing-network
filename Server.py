@@ -527,11 +527,7 @@ class ClientThread(Thread):
 
         # Output file onto server
         receivedFile = open(receivedFileName, "w+")
-        # receivedFile.write(fileData)
-
-        recvPacket = self.clientSocket.recv(1024).decode()
-        while recvPacket != '\r\nUED EOF\r\n':
-            receivedFile.write(recvPacket)
+        receivedFile.write(fileData)
 
         # Add to upload log
         uploadLogFile = open(uploadLogFileName, "a")
