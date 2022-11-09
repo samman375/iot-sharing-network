@@ -52,7 +52,6 @@ class UDPThread(Thread):
             except:
                 continue
             message = data.decode("latin-1")
-            print(message)
             # Very simple error checking
             if message[0:3] != "UVF":
                 print(f"\nCorrupted UVF file from {recvAddress} received.")
@@ -283,7 +282,9 @@ class TCPThread(Thread):
                                         break
 
                                     time.sleep(1)
-                                    print(f"Sending packet {sentPackets}/{nPackets}.")
+                                    print(
+                                        f"Sending packet {sentPackets}/{nPackets} ({math.ceil(sentPackets/nPackets)}%)"
+                                    )
                                     clientUDPSocket.sendto(packet, deviceDetails)
 
                                 byteFile.close()
