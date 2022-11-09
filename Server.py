@@ -540,8 +540,6 @@ class ClientThread(Thread):
         messageToSend += f"\nFile with ID {fileID} successfully received by server."
         self.sendMessage(messageToSend)
 
-        # remove commented code from refactoring earlier on client side
-
 
 print("\n===== Server is running =====")
 print("===== Waiting for connection request from clients...=====")

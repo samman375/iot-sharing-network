@@ -94,7 +94,6 @@ class TCPThread(Thread):
         Thread.__init__(self)
 
     def run(self):
-
         while True:
             # receive response from the server
             data = clientSocket.recv(1024)
@@ -261,10 +260,11 @@ class TCPThread(Thread):
                                 print(f"{deviceName} is offline.")
                             else:
                                 address, port = deviceDetails
+                                packetSize = 4096
 
                                 # Calculate number of packets
                                 fileSize = os.path.getsize(fileName)
-                                nPackets = math.ceil(fileSize / 4096)
+                                nPackets = math.ceil(fileSize / packetSize)
 
                                 # Create and send header
                                 message = f"UVF {fileName} {nPackets} {username}"
@@ -272,7 +272,17 @@ class TCPThread(Thread):
                                     message.encode("utf-8"), (address, port)
                                 )
 
-                                # TODO: Break file into packets reading 4096 bytes at a time and send
+                                # Break file into packets reading 4096 bytes at a time and send
+                                # Adapted from: https://stackoverflow.com/questions/6787233/python-how-to-read-bytes-from-file-and-save-it
+                                byteFile = open(fileName, "rb")
+                                while True:
+                                    packet = byteFile.read(packetSize)
+
+                                    # Break on empty packet
+                                    if packet == b"":
+                                        break
+
+                                    clientUDPSocket.sendto(packet, (address, port))
 
                                 print(f"{fileName} sent to {deviceName}.")
                     else:
@@ -280,8 +290,12 @@ class TCPThread(Thread):
                         clientSocket.send(message.encode())
 
 
-# TODO: Create the 2 threads, may need to pass them arguments
+# Create the 2 threads, may need to pass them arguments
+tcpThread = TCPThread()
+udpThread = UDPThread()
+tcpThread.start()
+udpThread.start()
 
-# close the socket
+# close the sockets
 clientSocket.close()
 clientUDPSocket.close()
