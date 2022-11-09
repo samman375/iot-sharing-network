@@ -7,7 +7,7 @@
 """
 from socket import *
 from threading import Thread
-import sys, re, os, math
+import sys, re, os, math, time
 
 
 if len(sys.argv) != 4:
@@ -21,9 +21,7 @@ clientUDPServerPort = int(sys.argv[3])
 serverAddress = (serverHost, serverPort)
 
 if clientUDPServerPort < 1024 or clientUDPServerPort > 65535:
-    print(
-        "Error: CLIENT_UDP_SERVER_PORT out of range. Port must be in range: [1024, 65535]."
-    )
+    print("Error: Invalid CLIENT_UDP_SERVER_PORT. Must be in range [1024, 65535].")
     exit(0)
 
 username = ""
@@ -262,7 +260,6 @@ class TCPThread(Thread):
 
                                 # Create and send header
                                 message = f"UVF {fileName} {nPackets} {username}"
-                                print(type(bytes(message, encoding="utf-8")))
                                 clientUDPSocket.sendto(
                                     bytes(message, encoding="utf-8"), deviceDetails
                                 )
@@ -277,6 +274,7 @@ class TCPThread(Thread):
                                     if packet == b"":
                                         break
 
+                                    time.sleep(1)
                                     clientUDPSocket.sendto(packet, deviceDetails)
 
                                 print(f"{fileName} sent to {deviceName}.")
@@ -306,7 +304,7 @@ class TCPThread(Thread):
                 name = deviceInfo[0][:-1]
                 if name != deviceName:
                     continue
-                address = deviceInfo[10][:-1]
+                address = deviceInfo[9][:-1]
                 port = int(deviceInfo[13])
                 return (address, port)
         return None
