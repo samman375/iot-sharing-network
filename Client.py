@@ -20,6 +20,12 @@ serverPort = int(sys.argv[2])
 clientUDPServerPort = int(sys.argv[3])
 serverAddress = (serverHost, serverPort)
 
+if clientUDPServerPort < 1024 or clientUDPServerPort > 65535:
+    print(
+        "Error: CLIENT_UDP_SERVER_PORT out of range. Port must be in range: [1024, 65535]."
+    )
+    exit(0)
+
 username = ""
 
 # define a TCP and UDP socket for the client side, it would be used to communicate with the server
@@ -108,6 +114,8 @@ class TCPThread(Thread):
                     print("Invalid Username. Please try again.")
                 message = input("Username: ").strip()
                 username = message
+                # UDP Server Port sent with username
+                message += f" {clientUDPServerPort}"
                 clientSocket.send(message.encode())
 
             # Get and send password

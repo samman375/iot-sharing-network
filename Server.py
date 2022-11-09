@@ -148,7 +148,7 @@ def createEdgeDeviceLog():
 
 # Add new device to network
 # Intialises device information in global struct and add to log file
-def addNewDevice(username, clientIPAddr):
+def addNewDevice(username, clientIPAddr, clientUDPPort):
     nDevicesLock.acquire()
     global nDevices
     nDevices += 1
@@ -156,7 +156,7 @@ def addNewDevice(username, clientIPAddr):
     nDevicesLock.release()
 
     timestamp = getFormattedDatetime(datetime.now())
-    UDPPortNum = 0  # TODO
+    UDPPortNum = clientUDPPort
 
     # Add device to devices object
     deviceObj = {}
@@ -331,6 +331,7 @@ class ClientThread(Thread):
         failedAttempts = 0
         validUsername = False
         usernameClaim = ""
+        clientUDPPort = 0
 
         # Initial get username from client
         self.sendMessage("RC0;username authentication request")
@@ -338,7 +339,8 @@ class ClientThread(Thread):
         # Validate username
         while not validUsername:
             data = self.clientSocket.recv(1024)
-            usernameClaim = data.decode()
+            usernameClaim = data.decode().split()[0]
+            clientUDPPort = data.decode().split()[1]
 
             if usernameLookup(usernameClaim) and usernameClaim not in devicesInfo:
                 if not checkBlocked(usernameClaim):
@@ -376,7 +378,7 @@ class ClientThread(Thread):
                     self.authenticated = True
                     self.username = usernameClaim
                     self.sendMessage("RC1;welcome")
-                    addNewDevice(usernameClaim, self.clientAddress[0])
+                    addNewDevice(usernameClaim, self.clientAddress[0], clientUDPPort)
                     break
                 else:
                     # Valid credentials but account blocked
@@ -406,7 +408,7 @@ class ClientThread(Thread):
                     continue
                 else:
                     timestamp = devicesInfo[deviceName]["timestamp"]
-                    ipAddr = devicesInfo[deviceName]["deviceIPAddr"][0]
+                    ipAddr = devicesInfo[deviceName]["deviceIPAddr"]
                     udpPortNum = devicesInfo[deviceName]["UDPPortNum"]
                     message += f"\n{deviceName}, active since {timestamp}, IP address: {ipAddr}, UDP port number: {udpPortNum}"
 
