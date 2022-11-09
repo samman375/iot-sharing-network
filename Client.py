@@ -254,8 +254,9 @@ class TCPThread(Thread):
 
                                 # Create and send header
                                 message = f"UVF {fileName} {nPackets} {username}"
+                                print(type(bytes(message, encoding="utf-8")))
                                 clientUDPSocket.sendto(
-                                    bytes(message, "utf-8"), deviceDetails
+                                    bytes(message, encoding="utf-8"), deviceDetails
                                 )
 
                                 # Break file into packets reading 4096 bytes at a time and send
@@ -284,6 +285,8 @@ class TCPThread(Thread):
         receivedAED = data.decode()
 
         # Extract information from AED output
+        # Example AED ouput:
+        # test2, active since 09 November 2022 14:18:07, IP address: 1, UDP port number: 0
         devicesInfo = receivedAED.split("\n")
         # Remove header line
         devicesInfo = devicesInfo[1:]
@@ -295,8 +298,8 @@ class TCPThread(Thread):
                 name = deviceInfo[0][:-1]
                 if name != deviceName:
                     continue
-                address = deviceInfo[6][:-1]
-                port = deviceInfo[10]
+                address = deviceInfo[10][:-1]
+                port = int(deviceInfo[13])
                 return (address, port)
         return None
 
