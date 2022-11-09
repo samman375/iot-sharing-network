@@ -28,43 +28,26 @@ clientUDPSocket = socket(AF_INET, SOCK_DGRAM)
 
 # build connection with the server and send message to it
 clientSocket.connect(serverAddress)
-clientUDPSocket.bind("", clientUDPServerPort)
+clientUDPSocket.bind(("", clientUDPServerPort))
 
-# Given a deviceName, checks it is active and gets address and port via AED command
-# Return None if device not found, otherwise a tuple with address and port
-def getDeviceDetails(deviceName):
-    # Send and receive AED command
-    clientSocket.send("AED".encode())
-    data = clientSocket.recv(1024)
-    receivedAED = data.decode()
-
-    # Extract information from AED output
-    devicesInfo = receivedAED.split("\n")
-    # Remove header line
-    devicesInfo = devicesInfo[1:]
-    if devicesInfo[0] == "no other active edge devices":
-        return None
-    else:
-        for device in devicesInfo:
-            deviceInfo = device.split()
-            name = deviceInfo[0][:-1]
-            if name != deviceName:
-                continue
-            address = deviceInfo[6][:-1]
-            port = deviceInfo[10]
-            return (address, port)
-    return None
+# Allow UDP Thread to be killed with the TCP one exits
+clientUDPSocket.settimeout(0)
+killUDPThread = False
 
 
 class UDPThread(Thread):
-    # Constantly listening UDP daemon thread
     def __init__(self):
         Thread.__init__(self)
 
     def run(self):
-        while True:
-            # Receive header message from another client
-            data, recvAddress = clientUDPSocket.recvfrom(4096)
+        while not killUDPThread:
+            # Non-blocking recvfrom() to allow thread to be killed
+            try:
+                # Receive header message from another client
+                data, recvAddress = clientUDPSocket.recvfrom(4096)
+            except:
+                continue
+
             message = data.decode("utf-8")
 
             # Very simple error checking
@@ -158,6 +141,9 @@ class TCPThread(Thread):
 
             # Disconnect
             elif receivedMessage == "successfully disconnected\r":
+                # Kill UDP listening thread
+                global killUDPThread
+                killUDPThread = True
                 print("Successfully logged out. Goodbye!")
                 break
 
@@ -255,11 +241,11 @@ class TCPThread(Thread):
                             # Check device is active via AED + get port and address
                             deviceName = args[1]
                             fileName = args[2]
-                            deviceDetails = getDeviceDetails(deviceName)
+                            deviceDetails = self.getDeviceDetails(deviceName)
                             if deviceDetails == None:
                                 print(f"{deviceName} is offline.")
                             else:
-                                address, port = deviceDetails
+                                # address, port = deviceDetails
                                 packetSize = 4096
 
                                 # Calculate number of packets
@@ -269,7 +255,7 @@ class TCPThread(Thread):
                                 # Create and send header
                                 message = f"UVF {fileName} {nPackets} {username}"
                                 clientUDPSocket.sendto(
-                                    message.encode("utf-8"), (address, port)
+                                    bytes(message, "utf-8"), deviceDetails
                                 )
 
                                 # Break file into packets reading 4096 bytes at a time and send
@@ -282,20 +268,48 @@ class TCPThread(Thread):
                                     if packet == b"":
                                         break
 
-                                    clientUDPSocket.sendto(packet, (address, port))
+                                    clientUDPSocket.sendto(packet, deviceDetails)
 
                                 print(f"{fileName} sent to {deviceName}.")
                     else:
                         validInput = True
                         clientSocket.send(message.encode())
 
+    # Given a deviceName, checks it is active and gets address and port via AED command
+    # Return None if device not found, otherwise a tuple with address and port
+    def getDeviceDetails(self, deviceName):
+        # Send and receive AED command
+        clientSocket.send("AED".encode())
+        data = clientSocket.recv(1024)
+        receivedAED = data.decode()
 
-# Create the 2 threads, may need to pass them arguments
-tcpThread = TCPThread()
+        # Extract information from AED output
+        devicesInfo = receivedAED.split("\n")
+        # Remove header line
+        devicesInfo = devicesInfo[1:]
+        if devicesInfo[0] == "no other active edge devices":
+            return None
+        else:
+            for device in devicesInfo:
+                deviceInfo = device.split()
+                name = deviceInfo[0][:-1]
+                if name != deviceName:
+                    continue
+                address = deviceInfo[6][:-1]
+                port = deviceInfo[10]
+                return (address, port)
+        return None
+
+
 udpThread = UDPThread()
-tcpThread.start()
+tcpThread = TCPThread()
 udpThread.start()
+tcpThread.start()
+
+# Create the 2 threads
+while tcpThread.is_alive() and udpThread.is_alive():
+    continue
 
 # close the sockets
-clientSocket.close()
-clientUDPSocket.close()
+# clientSocket.close()
+# clientUDPSocket.close()
